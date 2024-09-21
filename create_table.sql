@@ -1,5 +1,4 @@
 CREATE TABLE option_data (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
     symbol VARCHAR(10),
     expiration DATE,
     strike DECIMAL(10, 2),
@@ -11,5 +10,6 @@ CREATE TABLE option_data (
     close DECIMAL(10, 2),
     volume INTEGER,
     average DECIMAL(10, 2),
-    barCount INTEGER
+    barCount INTEGER,
+    PRIMARY KEY (symbol, expiration, strike, right, date)
 );
