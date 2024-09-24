@@ -6,6 +6,7 @@
     <title>Option Price Chart</title>
     <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
 </head>
 <body>
     <h1>Option Price Chart</h1>
@@ -58,11 +59,63 @@
                 right: right
             }, function(data) {
                 console.log('Received data:', data);  // Debug log
-                if (data && data.data && data.layout) {
-                    Plotly.newPlot('chart', data.data, data.layout);
-                } else {
-                    console.error('Invalid data received from server');
-                }
+
+                // Clear previous chart
+                d3.select("#chart").selectAll("*").remove();
+
+                // Set up dimensions and margins
+                const margin = {top: 20, right: 30, bottom: 40, left: 40},
+                      width = 600 - margin.left - margin.right,
+                      height = 400 - margin.top - margin.bottom;
+
+                // Create SVG
+                const svg = d3.select("#chart")
+                    .append("svg")
+                    .attr("width", width + margin.left + margin.right)
+                    .attr("height", height + margin.top + margin.bottom)
+                    .append("g")
+                    .attr("transform", `translate(${margin.left},${margin.top})`);
+
+                // Parse the date / time
+                const parseTime = d3.timeParse("%Y-%m-%dT%H:%M:%S");
+
+                // Format the data
+                data.forEach(d => {
+                    d.date = parseTime(d.date);
+                    d.open = +d.open;
+                    d.high = +d.high;
+                    d.low = +d.low;
+                    d.close = +d.close;
+                });
+
+                // Set the ranges
+                const x = d3.scaleTime().range([0, width]);
+                const y = d3.scaleLinear().range([height, 0]);
+
+                // Define the domains
+                x.domain(d3.extent(data, d => d.date));
+                y.domain([d3.min(data, d => d.low), d3.max(data, d => d.high)]);
+
+                // Add the x Axis
+                svg.append("g")
+                    .attr("transform", `translate(0,${height})`)
+                    .call(d3.axisBottom(x));
+
+                // Add the y Axis
+                svg.append("g")
+                    .call(d3.axisLeft(y));
+
+                // Add the candlestick chart logic here
+                // You can use rectangles for open and close, and lines for high and low
+                // Example:
+                // svg.selectAll(".candle")
+                //     .data(data)
+                //     .enter().append("rect")
+                //     .attr("class", "candle")
+                //     .attr("x", d => x(d.date))
+                //     .attr("y", d => y(Math.max(d.open, d.close)))
+                //     .attr("height", d => Math.abs(y(d.open) - y(d.close)))
+                //     .attr("width", width / data.length - 1);
             })
             .fail(function(jqXHR, textStatus, errorThrown) {
                 console.error('AJAX request failed:', textStatus, errorThrown);

@@ -57,30 +57,10 @@ def get_chart_data():
 
     print(f"Data points fetched: {len(data)}")  # Debug print
 
-    # Convert to pandas DataFrame
-    df = pd.DataFrame(data, columns=['date', 'open', 'high', 'low', 'close'])
+    # Convert to a list of dictionaries for D3.js
+    result = [{'date': d[0].isoformat(), 'open': d[1], 'high': d[2], 'low': d[3], 'close': d[4]} for d in data]
 
-    # Convert DataFrame columns to lists to ensure they are JSON serializable
-    df['date'] = df['date'].astype(str)  # Convert datetime to string
-    open_data = df['open'].tolist()
-    high_data = df['high'].tolist()
-    low_data = df['low'].tolist()
-    close_data = df['close'].tolist()
-    date_data = df['date'].tolist()
-
-    # Create candlestick chart
-    fig = go.Figure(data=[go.Candlestick(x=date_data,
-                                         open=open_data,
-                                         high=high_data,
-                                         low=low_data,
-                                         close=close_data)])
-
-    fig.update_layout(title=f'{symbol} Option Price',
-                      xaxis_title='Date',
-                      yaxis_title='Price')
-
-    # Use PlotlyJSONEncoder to serialize the figure
-    return jsonify(fig.to_dict())
+    return jsonify(result)
 
 @app.route('/check_db')
 def check_db():
