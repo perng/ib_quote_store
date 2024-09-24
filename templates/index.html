@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Option Price Chart</title>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+</head>
+<body>
+    <h1>Option Price Chart</h1>
+    <div>
+        <label for="symbol">Symbol:</label>
+        <select id="symbol">
+            {% for s in symbols %}
+            <option value="{{ s[0] }}">{{ s[0] }}</option>
+            {% endfor %}
+        </select>
+
+        <label for="expiration">Expiration:</label>
+        <select id="expiration">
+            {% for e in expirations %}
+            <option value="{{ e[0] }}">{{ e[0] }}</option>
+            {% endfor %}
+        </select>
+
+        <label for="strike">Strike:</label>
+        <select id="strike">
+            {% for s in strikes %}
+            <option value="{{ s[0] }}">{{ s[0] }}</option>
+            {% endfor %}
+        </select>
+
+        <label for="right">Right:</label>
+        <select id="right">
+            {% for r in rights %}
+            <option value="{{ r[0] }}">{{ r[0] }}</option>
+            {% endfor %}
+        </select>
+
+        <button onclick="updateChart()">Update Chart</button>
+    </div>
+    <div id="chart"></div>
+
+    <script>
+        function updateChart() {
+            const symbol = $('#symbol').val();
+            const expiration = $('#expiration').val();
+            const strike = $('#strike').val();
+            const right = $('#right').val();
+
+            console.log(`Fetching data for: ${symbol}, ${expiration}, ${strike}, ${right}`);  // Debug log
+
+            $.get('/get_chart_data', {
+                symbol: symbol,
+                expiration: expiration,
+                strike: strike,
+                right: right
+            }, function(data) {
+                console.log('Received data:', data);  // Debug log
+                if (data && data.data && data.layout) {
+                    Plotly.newPlot('chart', data.data, data.layout);
+                } else {
+                    console.error('Invalid data received from server');
+                }
+            })
+            .fail(function(jqXHR, textStatus, errorThrown) {
+                console.error('AJAX request failed:', textStatus, errorThrown);
+            });
+        }
+
+        // Initial chart load
+        $(document).ready(function() {
+            updateChart();
+        });
+    </script>
+</body>
+</html>

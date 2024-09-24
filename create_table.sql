@@ -25,3 +25,35 @@ CREATE TABLE quote_status (
     PRIMARY KEY (quote_type, symbol, expiration, strike, right)
 );
 
+CREATE TABLE IF NOT EXISTS vix_data (
+                symbol TEXT,
+                date TEXT,
+                open REAL,
+                high REAL,
+                low REAL,
+                close REAL,
+                volume INTEGER,
+                average REAL,
+                barCount INTEGER,
+                PRIMARY KEY (symbol, date)
+);
+
+CREATE VIEW daily_option AS
+SELECT 
+    quote_type,
+    symbol,
+    expiration,
+    strike,
+    right,
+    DATE(MAX(date)) AS date,  -- Date of the last hour
+    FIRST_VALUE(open) OVER (PARTITION BY quote_type, symbol, expiration, strike, right, DATE(date) ORDER BY date) AS open,  -- Open of the first hour
+    MAX(high) AS high,  -- Maximum high of all hours
+    MIN(low) AS low,
+    LAST_VALUE(close) OVER (PARTITION BY quote_type, symbol, expiration, strike, right, DATE(date) ORDER BY date ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) AS close,  -- Close of the last hour
+    SUM(volume) AS volume  -- Sum of volume of all hours
+FROM 
+    option_data
+WHERE quote_type = 'TRADES'	
+GROUP BY 
+    quote_type, symbol, expiration, strike, right, DATE(date);
+

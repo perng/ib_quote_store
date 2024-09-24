@@ -36,7 +36,7 @@ def store_option_data(df, symbol, expiration, strike, right, quote_type):
         conn.commit()
         if df is not None and not df.empty:
             print(f"Data stored in SQLite. Row count: {len(df)}")
-        print(f"Quote status updated for {symbol} {expiration} {strike} {right} {quote_type}")
+
     except Exception as e:
         print(f"An error occurred while storing data: {str(e)}")
     finally:
@@ -47,7 +47,6 @@ def get_days_back(symbol, expiration, strike, right, quote_type):
     cursor = conn.cursor()
     
     try:
-        print(f"Getting days back for {symbol} {expiration} {strike} {right} {quote_type}")
         # Convert expiration to the format used in the database
         expiration_date = datetime.strptime(expiration, '%Y%m%d').date().isoformat()
         
@@ -147,7 +146,7 @@ if __name__ == "__main__":
     ib = IB()
     try:
         ib.connect('127.0.0.1', 7497, clientId=1)
-        # option_chains = get_option_chain(ib, symbol)
+        option_chains = get_option_chain(ib, symbol)
 
         # df = get_option_data(ib, 'VIX', 'CBOE', '20241015', 18.0, 'P', 'ASK')
         # print(df)
