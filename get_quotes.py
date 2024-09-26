@@ -43,6 +43,7 @@ def store_option_data(df, symbol, expiration, strike, right, quote_type):
         conn.close()
 
 def get_days_back(symbol, expiration, strike, right, quote_type):
+    return 30
     conn = sqlite3.connect('options.db')
     cursor = conn.cursor()
     
@@ -141,14 +142,15 @@ def get_option_chain(ib, symbol):
 if __name__ == "__main__":
     symbol = 'VIX'
     rights = ['P', 'C']
-    whatToShowList = ['TRADES', 'ASK', 'BID']
+    exchanges = ['SMART', 'CBOE']   
+    whatToShowList = ['TRADES']
 
     ib = IB()
     try:
         ib.connect('127.0.0.1', 7497, clientId=1)
         option_chains = get_option_chain(ib, symbol)
 
-        # df = get_option_data(ib, 'VIX', 'CBOE', '20241015', 18.0, 'P', 'ASK')
+        # df = get_option_data(ib, 'VIX', 'SMART', '20241015', 16.0, 'P', 'TRADES')
         # print(df)
         # sys.exit()
 
@@ -158,18 +160,19 @@ if __name__ == "__main__":
                     if strike <= STRIKE_PRICE_LIMIT:
                         for right in rights:
                             for whatToShow in whatToShowList:
-                                try:
-                                    print('-'*40)
-                                    print(f"Processing {symbol} {expiration} {strike} {right} {whatToShow}")
-                                    df = get_option_data(ib, symbol, chain.exchange, expiration, strike, right, whatToShow)
-                                    store_option_data(df, symbol, expiration, strike, right, whatToShow)
-                                    if df is not None and not df.empty:
-                                        print(f"Data stored. Row count: {len(df)}")
-                                    else:
-                                        print("No new data or retrieval failed.")
-                                except Exception as e:
-                                    print(f"Error processing option: {str(e)}")
-                                    continue  # Move to next option
+                                for exchange in exchanges:
+                                    try:
+                                        print('-'*40)
+                                        print(f"Processing {symbol} {expiration} {strike} {right} {whatToShow}")
+                                        df = get_option_data(ib, symbol, exchange, expiration, strike, right, whatToShow)
+                                        store_option_data(df, symbol, expiration, strike, right, whatToShow)
+                                        if df is not None and not df.empty:
+                                            print(f"Data stored. Row count: {len(df)}")
+                                        else:
+                                            print("No new data or retrieval failed.")
+                                    except Exception as e:
+                                        print(f"Error processing option: {str(e)}")
+                                        continue  # Move to next option
     except Exception as e:
         print(f"An error occurred: {str(e)}")
     finally:

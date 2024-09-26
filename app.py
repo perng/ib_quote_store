@@ -1,6 +1,6 @@
 from collections import defaultdict
 import os
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, redirect, url_for
 from flask_sqlalchemy import SQLAlchemy
 import pandas as pd
 import plotly.graph_objs as go
@@ -80,8 +80,9 @@ def get_chart_data():
                 DailyOption.expiration == expiration,
                 DailyOption.strike == strike,
                 DailyOption.right == right,
-                DailyOption.strike >= STRIKE_PRICE_MIN,
-                DailyOption.strike <= STRIKE_PRICE_MAX).all()
+                # DailyOption.strike >= STRIKE_PRICE_MIN,
+                # DailyOption.strike <= STRIKE_PRICE_MAX
+                 ).all()
 
     print(f"Data points fetched: {len(data)}")  # Debug print
 
@@ -165,8 +166,8 @@ def get_option_chain_data(symbol, expiration, quote_type):
         DailyOption.date == last_date,  
         DailyOption.expiration == expiration,
         DailyOption.quote_type == quote_type,
-        DailyOption.strike >= STRIKE_PRICE_MIN,
-        DailyOption.strike <= STRIKE_PRICE_MAX
+        # DailyOption.strike >= STRIKE_PRICE_MIN,
+        # DailyOption.strike <= STRIKE_PRICE_MAX
     ).order_by(DailyOption.strike.asc())
     
     print("Options query:", options_query)
@@ -207,6 +208,60 @@ def get_option_chain_data(symbol, expiration, quote_type):
 def get_current_vix_value():
     latest_vix = VixData.query.order_by(VixData.date.desc()).first()
     return latest_vix.close if latest_vix else None
+
+@app.route('/option_calculator', methods=['GET', 'POST'])
+def option_calculator():
+    if request.method == 'POST':
+        # Process form data
+        stock = request.form.get('stock')
+        shares = int(request.form.get('shares'))
+        options = []
+        
+        # Process options data
+        for i in range(10):  # Assume max 10 options
+            strike = request.form.get(f'strike_{i}')
+            if strike:
+                options.append({
+                    'strike': float(strike),
+                    'type': request.form.get(f'type_{i}'),
+                    'position': request.form.get(f'position_{i}'),
+                    'price': float(request.form.get(f'price_{i}')),
+                    'contracts': int(request.form.get(f'contracts_{i}'))
+                })
+        
+        # Calculate profit/loss chart data
+        chart_data = calculate_profit_loss(stock, shares, options)
+        
+        return jsonify(chart_data)
+    
+    return render_template('option_calculator.html')
+
+def calculate_profit_loss(stock, shares, options):
+    # Generate a range of potential stock prices
+    min_price = min(option['strike'] for option in options) * 0.5
+    max_price = max(option['strike'] for option in options) * 1.5
+    stock_prices = np.linspace(min_price, max_price, 100)
+    
+    profits = []
+    for price in stock_prices:
+        profit = (price - float(stock)) * shares
+        for option in options:
+            if option['type'] == 'call':
+                option_profit = max(0, price - option['strike']) - option['price']
+            else:  # put
+                option_profit = max(0, option['strike'] - price) - option['price']
+            
+            if option['position'] == 'short':
+                option_profit = -option_profit
+            
+            profit += option_profit * 100 * option['contracts']  # 100 shares per contract
+        profits.append(profit)
+    
+    return {
+        'stockPrices': stock_prices.tolist(),
+        'profits': profits
+    }
+
 
 if __name__ == '__main__':
     app.run(debug=True)
