@@ -1,131 +1,228 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Option Price Chart</title>
-    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-    <script src="https://d3js.org/d3.v7.min.js"></script>
+  <meta charset="UTF-8">
+  <title>Option Chain Visualization for VIX</title>
+  <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  <style>
+    #chart {
+      width: 100%;
+      max-width: 800px;
+      margin: auto;
+    }
+    #historical-chart {
+      width: 100%;
+      max-width: 800px;
+      margin: 50px auto;
+      display: none;
+    }
+  </style>
 </head>
 <body>
-    <h1>Option Price Chart</h1>
-    <div>
-        <label for="symbol">Symbol:</label>
-        <select id="symbol">
-            {% for s in symbols %}
-            <option value="{{ s[0] }}">{{ s[0] }}</option>
-            {% endfor %}
-        </select>
 
-        <label for="expiration">Expiration:</label>
-        <select id="expiration">
-            {% for e in expirations %}
-            <option value="{{ e[0] }}">{{ e[0] }}</option>
-            {% endfor %}
-        </select>
+<h1>Option Chain Visualization for VIX</h1>
 
-        <label for="strike">Strike:</label>
-        <select id="strike">
-            {% for s in strikes %}
-            <option value="{{ s[0] }}">{{ s[0] }}</option>
-            {% endfor %}
-        </select>
+<label for="expiration">Select Expiration Date:</label>
+<select id="expiration">
+  <!-- Options will be populated dynamically -->
+</select>
+<button id="show-chart">Show Chart</button>
 
-        <label for="right">Right:</label>
-        <select id="right">
-            {% for r in rights %}
-            <option value="{{ r[0] }}">{{ r[0] }}</option>
-            {% endfor %}
-        </select>
+<div id="chart"></div>
+<div id="historical-chart"></div>
 
-        <button onclick="updateChart()">Update Chart</button>
-    </div>
-    <div id="chart"></div>
+<script>
+  // Inject the expirations data from Python into JavaScript
+  const expirations = {{ expirations|tojson|safe }};
 
-    <script>
-        function updateChart() {
-            const symbol = $('#symbol').val();
-            const expiration = $('#expiration').val();
-            const strike = $('#strike').val();
-            const right = $('#right').val();
+  // Function to update and show the option chain chart
+  function updateOptionChain() {
+    const expirationDate = $('#expiration').val(); // Get selected expiration date
+    $.get('/get_option_chain', { expiration: expirationDate, symbol: 'VIX', quote_type: 'TRADES' }, function(data) {
+      const strikePrices = data.strikePrices;
+      const callPrices = data.callPrices;
+      const putPrices = data.putPrices;
+      const callVolumes = data.callVolumes;
+      const putVolumes = data.putVolumes;
+      const vixValue = data.vixValue;
 
-            console.log(`Fetching data for: ${symbol}, ${expiration}, ${strike}, ${right}`);  // Debug log
+      // Create traces for Call and Put prices
+      const callTrace = {
+        x: strikePrices,
+        y: callPrices,
+        name: 'Call Prices',
+        type: 'bar',
+        marker: { color: 'blue' }
+      };
 
-            $.get('/get_chart_data', {
-                symbol: symbol,
-                expiration: expiration,
-                strike: strike,
-                right: right
-            }, function(data) {
-                console.log('Received data:', data);  // Debug log
+      const putTrace = {
+        x: strikePrices,
+        y: putPrices,
+        name: 'Put Prices',
+        type: 'bar',
+        marker: { color: 'red' }
+      };
 
-                // Clear previous chart
-                d3.select("#chart").selectAll("*").remove();
+      // Create traces for Call and Put volumes
+      const callVolumeTrace = {
+        x: strikePrices,
+        y: callVolumes,
+        name: 'Call Volume',
+        type: 'scatter',
+        mode: 'lines+markers',
+        yaxis: 'y2',
+        line: { color: 'blue', width: 2, dash: 'dot' },
+        marker: { symbol: 'circle', size: 6 }
+      };
 
-                // Set up dimensions and margins
-                const margin = {top: 20, right: 30, bottom: 40, left: 40},
-                      width = 600 - margin.left - margin.right,
-                      height = 400 - margin.top - margin.bottom;
+      const putVolumeTrace = {
+        x: strikePrices,
+        y: putVolumes,
+        name: 'Put Volume',
+        type: 'scatter',
+        mode: 'lines+markers',
+        yaxis: 'y2',
+        line: { color: 'red', width: 2, dash: 'dot' },
+        marker: { symbol: 'square', size: 6 }
+      };
 
-                // Create SVG
-                const svg = d3.select("#chart")
-                    .append("svg")
-                    .attr("width", width + margin.left + margin.right)
-                    .attr("height", height + margin.top + margin.bottom)
-                    .append("g")
-                    .attr("transform", `translate(${margin.left},${margin.top})`);
-
-                // Parse the date / time
-                const parseTime = d3.timeParse("%Y-%m-%dT%H:%M:%S");
-
-                // Format the data
-                data.forEach(d => {
-                    d.date = parseTime(d.date);
-                    d.open = +d.open;
-                    d.high = +d.high;
-                    d.low = +d.low;
-                    d.close = +d.close;
-                });
-
-                // Set the ranges
-                const x = d3.scaleTime().range([0, width]);
-                const y = d3.scaleLinear().range([height, 0]);
-
-                // Define the domains
-                x.domain(d3.extent(data, d => d.date));
-                y.domain([d3.min(data, d => d.low), d3.max(data, d => d.high)]);
-
-                // Add the x Axis
-                svg.append("g")
-                    .attr("transform", `translate(0,${height})`)
-                    .call(d3.axisBottom(x));
-
-                // Add the y Axis
-                svg.append("g")
-                    .call(d3.axisLeft(y));
-
-                // Add the candlestick chart logic here
-                // You can use rectangles for open and close, and lines for high and low
-                // Example:
-                // svg.selectAll(".candle")
-                //     .data(data)
-                //     .enter().append("rect")
-                //     .attr("class", "candle")
-                //     .attr("x", d => x(d.date))
-                //     .attr("y", d => y(Math.max(d.open, d.close)))
-                //     .attr("height", d => Math.abs(y(d.open) - y(d.close)))
-                //     .attr("width", width / data.length - 1);
-            })
-            .fail(function(jqXHR, textStatus, errorThrown) {
-                console.error('AJAX request failed:', textStatus, errorThrown);
-            });
+      // Create a vertical line to mark the VIX value
+      const vixLine = {
+        type: 'line',
+        x0: vixValue,
+        x1: vixValue,
+        y0: 0,
+        y1: 1,
+        xref: 'x',
+        yref: 'paper',
+        line: {
+          color: 'green',
+          width: 2,
+          dash: 'dashdot'
         }
+      };
 
-        // Initial chart load
-        $(document).ready(function() {
-            updateChart();
-        });
-    </script>
+      const chartData = [callTrace, putTrace, callVolumeTrace, putVolumeTrace];
+
+      const layout = {
+        title: 'Option Chain Visualization',
+        xaxis: { title: 'Strike Price' },
+        yaxis: { title: 'Option Price' },
+        yaxis2: {
+          title: 'Trading Volume',
+          overlaying: 'y',
+          side: 'right'
+        },
+        barmode: 'group',
+        shapes: [vixLine],
+        annotations: [
+          {
+            x: vixValue,
+            y: 1,
+            xref: 'x',
+            yref: 'paper',
+            text: `VIX Value: ${vixValue}`,
+            showarrow: false,
+            xanchor: 'left',
+            yanchor: 'bottom',
+            font: {
+              color: 'green',
+              size: 12
+            }
+          }
+        ]
+      };
+
+      Plotly.newPlot('chart', chartData, layout);
+
+      // Add interactivity for clicking on bars
+      const chartDiv = document.getElementById('chart');
+      chartDiv.on('plotly_click', function(data){
+        const strikePrice = data.points[0].x;
+        showHistoricalChart(strikePrice);
+      });
+    });
+  }
+
+  // Function to display the historical price chart with candlestick, volume, and VIX values
+  function showHistoricalChart(strikePrice) {
+    $.get('/get_historical_data', { strikePrice: strikePrice }, function(ohlcvData) {
+      const candlestickTrace = {
+        x: ohlcvData.map(d => d.date),
+        open: ohlcvData.map(d => d.open),
+        high: ohlcvData.map(d => d.high),
+        low: ohlcvData.map(d => d.low),
+        close: ohlcvData.map(d => d.close),
+        increasing: { line: { color: 'green' } },
+        decreasing: { line: { color: 'red' } },
+        type: 'candlestick',
+        xaxis: 'x',
+        yaxis: 'y',
+        name: 'Price'
+      };
+
+      const volumeTrace = {
+        x: ohlcvData.map(d => d.date),
+        y: ohlcvData.map(d => d.volume),
+        type: 'bar',
+        xaxis: 'x',
+        yaxis: 'y2',
+        marker: { color: 'grey' },
+        opacity: 0.5,
+        name: 'Volume'
+      };
+
+      const vixTrace = {
+        x: ohlcvData.map(d => d.date),
+        y: ohlcvData.map(d => d.vix),
+        type: 'scatter',
+        mode: 'lines+markers',
+        xaxis: 'x',
+        yaxis: 'y3',
+        line: { color: 'purple', width: 2 },
+        marker: { symbol: 'triangle-up', size: 6 },
+        name: 'VIX Value'
+      };
+
+      const data = [candlestickTrace, volumeTrace, vixTrace];
+
+      const layout = {
+        title: `Historical Prices for Strike Price ${strikePrice}`,
+        xaxis: { title: 'Date', rangeslider: { visible: false } },
+        yaxis: { title: 'Price', domain: [0.3, 1] },
+        yaxis2: {
+          title: 'Volume',
+          domain: [0, 0.2],
+          anchor: 'x'
+        },
+        yaxis3: {
+          title: 'VIX Value',
+          overlaying: 'y',
+          side: 'right',
+          position: 1
+        },
+        legend: { orientation: 'h', x: 0.5, xanchor: 'center' },
+        margin: { t: 50, r: 50, b: 50, l: 50 },
+        grid: { rows: 2, columns: 1, subplots: [['xy'], ['xy2']] }
+      };
+
+      Plotly.newPlot('historical-chart', data, layout);
+      document.getElementById('historical-chart').style.display = 'block';
+    });
+  }
+
+  // Initial load
+  $(document).ready(function() {
+    // Populate expiration dates from the server-side rendered data
+    const expirationSelect = $('#expiration');
+    expirations.forEach(date => {
+      expirationSelect.append(new Option(date, date));
+    });
+
+    $('#show-chart').click(updateOptionChain); // Show chart when button is clicked
+  });
+</script>
+
 </body>
 </html>

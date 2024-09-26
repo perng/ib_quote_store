@@ -57,7 +57,7 @@ def store_vix_data(df):
         ''')
 
         # Insert data
-        df.to_sql('vix_data', conn, if_exists='append', index=False)
+        df.to_sql('vix_data', conn, if_exists='replace', index=False)
 
         conn.commit()
         print(f"VIX data stored successfully. Rows added: {len(df)}")
