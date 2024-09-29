@@ -57,7 +57,7 @@ def store_vix_data(df):
         ''')
 
         # Insert data
-        df.to_sql('vix_data', conn, if_exists='append', index=False)
+        df.to_sql('vix_data', conn, if_exists='replace', index=False)
 
         conn.commit()
         print(f"VIX data stored successfully. Rows added: {len(df)}")
@@ -66,8 +66,7 @@ def store_vix_data(df):
     finally:
         conn.close()
 
-def main():
-    ib = IB()
+def main(ib):
     try:
         ib.connect('127.0.0.1', 7497, clientId=23)
         vix_data = get_vix_data(ib)
@@ -83,4 +82,5 @@ def main():
         print("IB connection closed.")
 
 if __name__ == "__main__":
-    main()
+    ib = IB()
+    main(ib)

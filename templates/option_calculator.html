@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Option Calculator</title>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+</head>
+<body>
+    <h1>Option Calculator</h1>
+    <form id="optionForm">
+        <label for="stock">Stock Price:</label>
+        <input type="number" id="stock" name="stock" required step="0.01">
+        
+        <label for="shares">Number of Shares:</label>
+        <input type="number" id="shares" name="shares" required>
+        
+        <h2>Options</h2>
+        <div id="optionsContainer">
+            <div class="option">
+                <input type="number" name="strike_0" placeholder="Strike Price" step="0.01">
+                <select name="type_0">
+                    <option value="call">Call</option>
+                    <option value="put">Put</option>
+                </select>
+                <select name="position_0">
+                    <option value="long">Long</option>
+                    <option value="short">Short</option>
+                </select>
+                <input type="number" name="price_0" placeholder="Option Price" step="0.01">
+                <input type="number" name="contracts_0" placeholder="Number of Contracts">
+            </div>
+        </div>
+        <button type="button" id="addOption">Add Option</button>
+        <button type="submit">Calculate</button>
+    </form>
+    
+    <div id="chart"></div>
+
+    <script>
+        let optionCount = 1;
+
+        $('#addOption').click(function() {
+            const newOption = `
+                <div class="option">
+                    <input type="number" name="strike_${optionCount}" placeholder="Strike Price" step="0.01">
+                    <select name="type_${optionCount}">
+                        <option value="call">Call</option>
+                        <option value="put">Put</option>
+                    </select>
+                    <select name="position_${optionCount}">
+                        <option value="long">Long</option>
+                        <option value="short">Short</option>
+                    </select>
+                    <input type="number" name="price_${optionCount}" placeholder="Option Price" step="0.01">
+                    <input type="number" name="contracts_${optionCount}" placeholder="Number of Contracts">
+                </div>
+            `;
+            $('#optionsContainer').append(newOption);
+            optionCount++;
+        });
+
+        $('#optionForm').submit(function(e) {
+            e.preventDefault();
+            $.ajax({
+                url: '/option_calculator',
+                method: 'POST',
+                data: $(this).serialize(),
+                success: function(data) {
+                    Plotly.newPlot('chart', [{
+                        x: data.stockPrices,
+                        y: data.profits,
+                        type: 'scatter',
+                        mode: 'lines',
+                        name: 'Profit/Loss'
+                    }], {
+                        title: 'Profit/Loss at Expiration',
+                        xaxis: { title: 'Stock Price' },
+                        yaxis: { title: 'Profit/Loss ($)' }
+                    });
+                }
+            });
+        });
+    </script>
+</body>
+</html>

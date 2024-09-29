@@ -1,78 +1,346 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Option Price Chart</title>
-    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  <meta charset="UTF-8">
+  <title>Option Chain Visualization for VIX</title>
+  <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  <style>
+    #combined-chart {
+      width: 100%;
+      max-width: 1200px; /* Increased from 800px to 1200px (1.5 times wider) */
+      height: 600px;
+      margin: auto;
+    }
+    #historical-chart {
+      width: 100%;
+      max-width: 1200px; /* Increased from 800px to 1200px (1.5 times wider) */
+      margin: 50px auto;
+      display: none;
+    }
+    #quote-info {
+      width: 100%;
+      max-width: 1200px;
+      margin: 20px auto;
+      text-align: right;
+      font-style: italic;
+    }
+    #quote-table {
+      width: 100%;
+      max-width: 1200px;
+      margin: 20px auto;
+      border-collapse: collapse;
+    }
+    #quote-table th, #quote-table td {
+      border: 1px solid #ddd;
+      padding: 8px;
+      text-align: right;
+    }
+    #quote-table th {
+      background-color: #f2f2f2;
+      text-align: center;
+    }
+    #update-quotes-btn {
+      display: block;
+      margin: 20px auto;
+      padding: 10px 20px;
+      font-size: 16px;
+      background-color: #4CAF50;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    #update-quotes-btn:hover {
+      background-color: #45a049;
+    }
+    #update-status {
+      text-align: center;
+      margin-top: 10px;
+      font-style: italic;
+    }
+  </style>
 </head>
 <body>
-    <h1>Option Price Chart</h1>
-    <div>
-        <label for="symbol">Symbol:</label>
-        <select id="symbol">
-            {% for s in symbols %}
-            <option value="{{ s[0] }}">{{ s[0] }}</option>
-            {% endfor %}
-        </select>
 
-        <label for="expiration">Expiration:</label>
-        <select id="expiration">
-            {% for e in expirations %}
-            <option value="{{ e[0] }}">{{ e[0] }}</option>
-            {% endfor %}
-        </select>
+<h1>Option Chain Visualization for VIX</h1>
 
-        <label for="strike">Strike:</label>
-        <select id="strike">
-            {% for s in strikes %}
-            <option value="{{ s[0] }}">{{ s[0] }}</option>
-            {% endfor %}
-        </select>
+<!-- Add the "Update Quotes" button here -->
+<button id="update-quotes-btn">Update Quotes</button>
+<div id="update-status"></div>
 
-        <label for="right">Right:</label>
-        <select id="right">
-            {% for r in rights %}
-            <option value="{{ r[0] }}">{{ r[0] }}</option>
-            {% endfor %}
-        </select>
+<label for="expiration">Select Expiration Date:</label>
+<select id="expiration">
+  <!-- Options will be populated dynamically -->
+</select>
 
-        <button onclick="updateChart()">Update Chart</button>
-    </div>
-    <div id="chart"></div>
+<div id="combined-chart"></div>
+<div id="quote-info"></div>
+<div id="historical-chart"></div>
+<table id="quote-table">
+  <thead>
+    <tr>
+      <th>Call Price</th>
+      <th>Call Volume</th>
+      <th>Strike</th>
+      <th>Put Volume</th>
+      <th>Put Price</th>
+    </tr>
+  </thead>
+  <tbody>
+    <!-- Table rows will be populated dynamically -->
+  </tbody>
+</table>
 
-    <script>
-        function updateChart() {
-            const symbol = $('#symbol').val();
-            const expiration = $('#expiration').val();
-            const strike = $('#strike').val();
-            const right = $('#right').val();
+<script>
+  // Inject the expirations data from Python into JavaScript
+  const expirations = {{ expirations|tojson|safe }};
 
-            console.log(`Fetching data for: ${symbol}, ${expiration}, ${strike}, ${right}`);  // Debug log
+  // Function to update and show the option chain chart
+  function updateOptionChain() {
+    const expirationDate = $('#expiration').val();
+    $.get('/get_option_chain', { expiration: expirationDate, symbol: 'VIX', quote_type: 'TRADES' }, function(data) {
+      const strikePrices = data.strikePrices;
+      const callPrices = data.callPrices;
+      const putPrices = data.putPrices;
+      const callVolumes = data.callVolumes;
+      const putVolumes = data.putVolumes;
+      const vixValue = data.vixValue;
+      const quoteDate = data.quoteDate;
 
-            $.get('/get_chart_data', {
-                symbol: symbol,
-                expiration: expiration,
-                strike: strike,
-                right: right
-            }, function(data) {
-                console.log('Received data:', data);  // Debug log
-                if (data && data.data && data.layout) {
-                    Plotly.newPlot('chart', data.data, data.layout);
-                } else {
-                    console.error('Invalid data received from server');
-                }
-            })
-            .fail(function(jqXHR, textStatus, errorThrown) {
-                console.error('AJAX request failed:', textStatus, errorThrown);
-            });
+      // Create traces for Call and Put prices
+      const callPriceTrace = {
+        x: strikePrices,
+        y: callPrices,
+        name: 'Call Prices',
+        type: 'scatter',
+        mode: 'lines',
+        line: { color: 'blue' },
+        yaxis: 'y2'
+      };
+
+      const putPriceTrace = {
+        x: strikePrices,
+        y: putPrices,
+        name: 'Put Prices',
+        type: 'scatter',
+        mode: 'lines',
+        line: { color: 'red' },
+        yaxis: 'y2'
+      };
+
+      // Create traces for Call and Put volumes
+      const callVolumeTrace = {
+        x: strikePrices,
+        y: callVolumes,
+        name: 'Call Volume',
+        type: 'bar',
+        marker: { color: 'rgba(0, 0, 255, 0.5)' }
+      };
+
+      const putVolumeTrace = {
+        x: strikePrices,
+        y: putVolumes,
+        name: 'Put Volume',
+        type: 'bar',
+        marker: { color: 'rgba(255, 0, 0, 0.5)' }
+      };
+
+      // Create a vertical line to mark the VIX value
+      const vixLine = {
+        type: 'line',
+        x0: vixValue,
+        x1: vixValue,
+        y0: 0,
+        y1: 1,
+        xref: 'x',
+        yref: 'paper',
+        line: {
+          color: 'green',
+          width: 2,
+          dash: 'dashdot'
         }
+      };
 
-        // Initial chart load
-        $(document).ready(function() {
-            updateChart();
-        });
-    </script>
+      const combinedData = [callVolumeTrace, putVolumeTrace, callPriceTrace, putPriceTrace];
+
+      const layout = {
+        title: 'Option Chain Visualization',
+        xaxis: { title: 'Strike Price' },
+        yaxis: { 
+          title: 'Volume',
+          side: 'left'
+        },
+        yaxis2: {
+          title: 'Option Price',
+          overlaying: 'y',
+          side: 'right'
+        },
+        shapes: [vixLine],
+        annotations: [
+          {
+            x: vixValue,
+            y: 1,
+            xref: 'x',
+            yref: 'paper',
+            text: `VIX Value: ${vixValue}`,
+            showarrow: false,
+            xanchor: 'left',
+            yanchor: 'bottom',
+            font: {
+              color: 'green',
+              size: 12
+            }
+          }
+        ],
+        barmode: 'group',
+        legend: { orientation: 'h', y: -0.2 },
+        width: 1200, // Added to set the width of the chart
+        height: 600  // Added to maintain the aspect ratio
+      };
+
+      Plotly.newPlot('combined-chart', combinedData, layout);
+
+      // Update the quote info
+      $('#quote-info').text(`Quote Date: ${data.quoteDate}`);
+
+      // Populate the quote table
+      const tableBody = $('#quote-table tbody');
+      tableBody.empty();
+      console.log("Populating table with", data.strikePrices.length, "rows");
+      for (let i = 0; i < data.strikePrices.length; i++) {
+        const callPrice = typeof data.callPrices[i] === 'number' ? data.callPrices[i].toFixed(2) : data.callPrices[i];
+        const putPrice = typeof data.putPrices[i] === 'number' ? data.putPrices[i].toFixed(2) : data.putPrices[i];
+        const strikePrice = typeof data.strikePrices[i] === 'number' ? data.strikePrices[i].toFixed(2) : data.strikePrices[i];
+        
+        tableBody.append(`
+          <tr>
+            <td>${callPrice}</td>
+            <td>${data.callVolumes[i]}</td>
+            <td>${strikePrice}</td>
+            <td>${data.putVolumes[i]}</td>
+            <td>${putPrice}</td>
+          </tr>
+        `);
+      }
+      console.log("Table populated");
+
+      // Add interactivity for clicking on bars or lines
+      const chartDiv = document.getElementById('combined-chart');
+      chartDiv.on('plotly_click', function(data){
+        const strikePrice = data.points[0].x;
+        showHistoricalChart(strikePrice);
+      });
+    });
+  }
+
+  // Function to display the historical price chart with candlestick, volume, and VIX values
+  function showHistoricalChart(strikePrice) {
+    $.get('/get_historical_data', { strikePrice: strikePrice }, function(ohlcvData) {
+      const candlestickTrace = {
+        x: ohlcvData.map(d => d.date),
+        open: ohlcvData.map(d => d.open),
+        high: ohlcvData.map(d => d.high),
+        low: ohlcvData.map(d => d.low),
+        close: ohlcvData.map(d => d.close),
+        increasing: { line: { color: 'green' } },
+        decreasing: { line: { color: 'red' } },
+        type: 'candlestick',
+        xaxis: 'x',
+        yaxis: 'y',
+        name: 'Price'
+      };
+
+      const volumeTrace = {
+        x: ohlcvData.map(d => d.date),
+        y: ohlcvData.map(d => d.volume),
+        type: 'bar',
+        xaxis: 'x',
+        yaxis: 'y2',
+        marker: { color: 'grey' },
+        opacity: 0.5,
+        name: 'Volume'
+      };
+
+      const vixTrace = {
+        x: ohlcvData.map(d => d.date),
+        y: ohlcvData.map(d => d.vix),
+        type: 'scatter',
+        mode: 'lines+markers',
+        xaxis: 'x',
+        yaxis: 'y3',
+        line: { color: 'purple', width: 2 },
+        marker: { symbol: 'triangle-up', size: 6 },
+        name: 'VIX Value'
+      };
+
+      const data = [candlestickTrace, volumeTrace, vixTrace];
+
+      const layout = {
+        title: `Historical Prices for Strike Price ${strikePrice}`,
+        xaxis: { title: 'Date', rangeslider: { visible: false } },
+        yaxis: { title: 'Price', domain: [0.3, 1] },
+        yaxis2: {
+          title: 'Volume',
+          domain: [0, 0.2],
+          anchor: 'x'
+        },
+        yaxis3: {
+          title: 'VIX Value',
+          overlaying: 'y',
+          side: 'right',
+          position: 1
+        },
+        legend: { orientation: 'h', x: 0.5, xanchor: 'center' },
+        margin: { t: 50, r: 50, b: 50, l: 50 },
+        grid: { rows: 2, columns: 1, subplots: [['xy'], ['xy2']] },
+        width: 1200, // Added to set the width of the chart
+        height: 600  // Added to maintain the aspect ratio
+      };
+
+      Plotly.newPlot('historical-chart', data, layout);
+      document.getElementById('historical-chart').style.display = 'block';
+    });
+  }
+
+  // Add this function to handle the "Update Quotes" button click
+  function updateQuotes() {
+    $('#update-quotes-btn').prop('disabled', true);
+    $('#update-status').text('Updating quotes... This may take a while.');
+
+    $.ajax({
+      url: '/start_get_quotes',
+      method: 'POST',
+      success: function(response) {
+        $('#update-status').text('Quote update process started. It will run in the background.');
+      },
+      error: function(xhr, status, error) {
+        $('#update-status').text('Error starting quote update: ' + error);
+      },
+      complete: function() {
+        $('#update-quotes-btn').prop('disabled', false);
+      }
+    });
+  }
+
+  // Initial load
+  $(document).ready(function() {
+    // Populate expiration dates from the server-side rendered data
+    const expirationSelect = $('#expiration');
+    expirations.forEach(date => {
+      expirationSelect.append(new Option(date, date));
+    });
+
+    // Show chart immediately when an expiration date is selected
+    expirationSelect.change(updateOptionChain);
+
+    // Trigger the change event to load the chart with the initial selection
+    expirationSelect.trigger('change');
+
+    // Add click handler for the "Update Quotes" button
+    $('#update-quotes-btn').click(updateQuotes);
+  });
+</script>
+
 </body>
 </html>
