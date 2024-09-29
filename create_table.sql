@@ -50,7 +50,7 @@ SELECT
     MAX(high) AS high,  -- Maximum high of all hours
     MIN(low) AS low,
     LAST_VALUE(close) OVER (PARTITION BY quote_type, symbol, expiration, strike, right, DATE(date) ORDER BY date ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) AS close,  -- Close of the last hour
-    SUM(volume) AS volume  -- Sum of volume of all hours
+    SUM(volume) AS volume  -- Sum of volume of all hours    
 FROM 
     option_data
 WHERE quote_type = 'TRADES'	

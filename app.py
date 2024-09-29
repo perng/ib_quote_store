@@ -9,6 +9,9 @@ from plotly.utils import PlotlyJSONEncoder
 from datetime import datetime
 from sqlalchemy import create_engine, func
 from sqlalchemy.orm import sessionmaker
+from flask import Flask, jsonify
+from threading import Thread
+from get_quotes import get_quotes
 
 STRIKE_PRICE_MAX = 25
 STRIKE_PRICE_MIN = 5
@@ -55,7 +58,6 @@ def index():
     quote_types = db.session.query(DailyOption.quote_type.distinct()).all()
     symbols = db.session.query(DailyOption.symbol.distinct()).all()
     expirations = db.session.query(DailyOption.expiration.distinct()).all()
-    print(expirations[0][0])
     expiration_dates = [exp[0].strftime('%Y-%m-%d') for exp in expirations]
     strikes = db.session.query(DailyOption.strike.distinct()).all()
     rights = db.session.query(DailyOption.right.distinct()).all()
@@ -116,17 +118,29 @@ def get_option_chain():
     option_chain_data = get_option_chain_data(symbol, expiration, quote_type)
     print(option_chain_data)
     df = pd.DataFrame(option_chain_data)
+    
 
-    data = {
-        'strikePrices': df['strike'].tolist(),
-        'callPrices': df['callLastPrice'].tolist(),
-        'putPrices': df['putLastPrice'].tolist(),
+    # Add this line to get the current date and time
+    quote_date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    
+    # Convert to float if possible, otherwise keep as is
+    strike_prices = [float(x) if isinstance(x, (int, float, str)) and x != '' else x for x in df['strike'].tolist()]
+    call_prices = [float(x) if isinstance(x, (int, float, str)) and x != '' else x for x in df['callLastPrice'].tolist()]
+    put_prices = [float(x) if isinstance(x, (int, float, str)) and x != '' else x for x in df['putLastPrice'].tolist()]
+    
+    result = {
+        'strikePrices': strike_prices,
+        'callPrices': call_prices,
+        'putPrices': put_prices,
         'callVolumes': df['callVolume'].tolist(),
         'putVolumes': df['putVolume'].tolist(),
-        'vixValue': get_current_vix_value()
+        'vixValue': get_current_vix_value(),
+        'quoteDate': quote_date
     }
-
-    return jsonify(data)
+    
+    app.logger.info(f"Sending data: {result}")  # Log the data being sent
+    
+    return jsonify(result)
 
 class OptionDayQuote:
     def __init__(self, strike=0, call=0, put=0, call_volume=0, put_volume=0):
@@ -262,6 +276,10 @@ def calculate_profit_loss(stock, shares, options):
         'profits': profits
     }
 
+@app.route('/start_get_quotes', methods=['POST'])
+def start_get_quotes():
+    get_quotes()
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    # app.run(debug=True)
+    app.run(host='0.0.0.0', port=5000)

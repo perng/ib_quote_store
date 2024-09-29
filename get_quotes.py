@@ -1,9 +1,11 @@
+import asyncio
 from ib_insync import *
 import pandas as pd
 from datetime import datetime, timedelta
 import pytz
 import sqlite3
 import sys
+import time
 
 STRIKE_PRICE_LIMIT = 100
 
@@ -43,7 +45,6 @@ def store_option_data(df, symbol, expiration, strike, right, quote_type):
         conn.close()
 
 def get_days_back(symbol, expiration, strike, right, quote_type):
-    return 30
     conn = sqlite3.connect('options.db')
     cursor = conn.cursor()
     
@@ -134,26 +135,37 @@ def get_option_data(ib, symbol, exchange,expiration, strike, right, whatToShow):
 
 def get_option_chain(ib, symbol):
     vix = Index('VIX', 'CBOE')
+    print('qualifying contracts')
     ib.qualifyContracts(vix)
+    print('requesting sec def opt params')
     chains = ib.reqSecDefOptParams(vix.symbol, '', vix.secType, vix.conId)
+    print('filtering chains')
     return [chain for chain in chains if chain.exchange == 'CBOE']
 
-# Example usage
-if __name__ == "__main__":
+def get_quotes():
+    # Import the main function from get_vix.py
+    from get_vix import main as get_vix_main
+
     symbol = 'VIX'
     rights = ['P', 'C']
     exchanges = ['SMART', 'CBOE']   
     whatToShowList = ['TRADES']
+    STRIKE_PRICE_LIMIT = 100
 
     ib = IB()
+    
     try:
         ib.connect('127.0.0.1', 7497, clientId=1)
+        time.sleep(1)
+        
+        # Call the main function from get_vix.py
+        # get_vix_main(ib)
+        print('getting option chains')
         option_chains = get_option_chain(ib, symbol)
 
-        # df = get_option_data(ib, 'VIX', 'SMART', '20241015', 16.0, 'P', 'TRADES')
-        # print(df)
-        # sys.exit()
-
+        total_options = sum(len(chain.expirations) * len(chain.strikes) * len(rights) * len(whatToShowList) * len(exchanges) for chain in option_chains)
+        processed_options = 0
+        print('processing option chains')
         for chain in option_chains:
             for expiration in chain.expirations:
                 for strike in chain.strikes:
@@ -172,9 +184,17 @@ if __name__ == "__main__":
                                             print("No new data or retrieval failed.")
                                     except Exception as e:
                                         print(f"Error processing option: {str(e)}")
-                                        continue  # Move to next option
+                                    finally:
+                                        processed_options += 1
+                                                                        
+                                    
+                                    
     except Exception as e:
         print(f"An error occurred: {str(e)}")
     finally:
         ib.disconnect()
         print("IB connection closed.")
+
+# Example usage
+if __name__ == "__main__":
+    get_quotes()
