@@ -2,95 +2,142 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Option Chain Visualization for VIX</title>
   <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
   <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
   <style>
-    #combined-chart {
+    body {
+      font-family: Arial, sans-serif;
+      line-height: 1.6;
+      color: #333;
+      margin: 0;
+      padding: 0;
+      background-color: #f4f4f4;
+    }
+    header {
+      background-color: #2c3e50;
+      color: #ecf0f1;
+      text-align: center;
+      padding: 1rem;
+    }
+    footer {
+      background-color: #34495e;
+      color: #ecf0f1;
+      text-align: center;
+      padding: 1rem;
+      position: fixed;
+      bottom: 0;
       width: 100%;
-      max-width: 1200px; /* Increased from 800px to 1200px (1.5 times wider) */
+    }
+    .container {
+      width: 90%;
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 2rem 0;
+    }
+    h1 {
+      color: #2c3e50;
+    }
+    #combined-chart, #historical-chart {
+      width: 100%;
       height: 600px;
-      margin: auto;
+      margin: 2rem auto;
+      background-color: #fff;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
     }
     #historical-chart {
-      width: 100%;
-      max-width: 1200px; /* Increased from 800px to 1200px (1.5 times wider) */
-      margin: 50px auto;
       display: none;
     }
     #quote-info {
-      width: 100%;
-      max-width: 1200px;
-      margin: 20px auto;
       text-align: right;
       font-style: italic;
+      margin: 1rem 0;
     }
     #quote-table {
       width: 100%;
-      max-width: 1200px;
-      margin: 20px auto;
       border-collapse: collapse;
+      margin: 2rem 0;
+      background-color: #fff;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
     }
     #quote-table th, #quote-table td {
       border: 1px solid #ddd;
-      padding: 8px;
+      padding: 12px;
       text-align: right;
     }
     #quote-table th {
-      background-color: #f2f2f2;
+      background-color: #3498db;
+      color: #fff;
       text-align: center;
+    }
+    #quote-table tr:nth-child(even) {
+      background-color: #f2f2f2;
     }
     #update-quotes-btn {
       display: block;
-      margin: 20px auto;
+      margin: 2rem auto;
       padding: 10px 20px;
       font-size: 16px;
-      background-color: #4CAF50;
+      background-color: #2ecc71;
       color: white;
       border: none;
       border-radius: 5px;
       cursor: pointer;
+      transition: background-color 0.3s;
     }
     #update-quotes-btn:hover {
-      background-color: #45a049;
+      background-color: #27ae60;
     }
     #update-status {
       text-align: center;
-      margin-top: 10px;
+      margin-top: 1rem;
       font-style: italic;
+      color: #7f8c8d;
+    }
+    select {
+      padding: 10px;
     }
   </style>
 </head>
 <body>
 
-<h1>Option Chain Visualization for VIX</h1>
+<header>
+  <h1>Option Chain Visualization for VIX</h1>
+</header>
 
-<!-- Add the "Update Quotes" button here -->
-<button id="update-quotes-btn">Update Quotes</button>
-<div id="update-status"></div>
+<div class="container">
+  <!-- Add the "Update Quotes" button here -->
+  <button id="update-quotes-btn">Update Quotes</button>
+  <div id="update-status"></div>
 
-<label for="expiration">Select Expiration Date:</label>
-<select id="expiration">
-  <!-- Options will be populated dynamically -->
-</select>
+  <label for="expiration">Select Expiration Date:</label>
+  <select id="expiration">
+    <!-- Options will be populated dynamically -->
+  </select>
 
-<div id="combined-chart"></div>
-<div id="quote-info"></div>
-<div id="historical-chart"></div>
-<table id="quote-table">
-  <thead>
-    <tr>
-      <th>Call Price</th>
-      <th>Call Volume</th>
-      <th>Strike</th>
-      <th>Put Volume</th>
-      <th>Put Price</th>
-    </tr>
-  </thead>
-  <tbody>
-    <!-- Table rows will be populated dynamically -->
-  </tbody>
-</table>
+  <div id="combined-chart"></div>
+  <div id="quote-info"></div>
+  <div id="historical-chart"></div>
+  <table id="quote-table">
+    <thead>
+      <tr>
+        <th>Call Price</th>
+        <th>Call Volume</th>
+        <th>Strike</th>
+        <th>Put Volume</th>
+        <th>Put Price</th>
+      </tr>
+    </thead>
+    <tbody>
+      <!-- Table rows will be populated dynamically -->
+    </tbody>
+  </table>
+</div>
+
+<footer>
+  &copy; 2022 Option Chain Visualization for VIX
+</footer>
 
 <script>
   // Inject the expirations data from Python into JavaScript
