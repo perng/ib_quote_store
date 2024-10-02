@@ -66,7 +66,8 @@ def store_vix_data(df):
     finally:
         conn.close()
 
-def main(ib):
+def main():
+    ib = IB()
     try:
         ib.connect('127.0.0.1', 7497, clientId=23)
         vix_data = get_vix_data(ib)
@@ -82,5 +83,4 @@ def main(ib):
         print("IB connection closed.")
 
 if __name__ == "__main__":
-    ib = IB()
-    main(ib)
+    main()

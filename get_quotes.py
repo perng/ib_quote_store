@@ -1,7 +1,8 @@
 import asyncio
 from ib_insync import *
 import pandas as pd
-from datetime import datetime, timedelta
+import datetime
+
 import pytz
 import sqlite3
 import sys
@@ -11,7 +12,7 @@ STRIKE_PRICE_LIMIT = 100
 
 def store_option_data(df, symbol, expiration, strike, right, quote_type):
     try:
-        expiration_date = datetime.strptime(expiration, '%Y%m%d').date().isoformat()
+        expiration_date = datetime.datetime.strptime(expiration, '%Y%m%d').date().isoformat()
         conn = sqlite3.connect('options.db')
         cursor = conn.cursor()
         
@@ -27,7 +28,7 @@ def store_option_data(df, symbol, expiration, strike, right, quote_type):
             
             latest = df['date'].max()
         else:
-            latest = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            latest = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         
         # Update quote_status table
         cursor.execute('''
@@ -49,10 +50,8 @@ def get_days_back(symbol, expiration, strike, right, quote_type):
     cursor = conn.cursor()
     
     try:
-        # Convert expiration to the format used in the database
-        expiration_date = datetime.strptime(expiration, '%Y%m%d').date().isoformat()
+        expiration_date = datetime.datetime.strptime(expiration, '%Y%m%d').date().isoformat()
         
-        # Get the latest date from quote_status
         cursor.execute('''
             SELECT latest FROM quote_status
             WHERE symbol = ? AND expiration = ? AND strike = ? AND right = ? AND quote_type = ?
@@ -61,29 +60,45 @@ def get_days_back(symbol, expiration, strike, right, quote_type):
         result = cursor.fetchone()
                 
         if result:
-            latest = datetime.strptime(result[0] , '%Y-%m-%d %H:%M:%S') + timedelta(days=1)
-            print(f"Latest date: {latest}")
-            current_date = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0) 
+            latest = datetime.datetime.strptime(result[0], '%Y-%m-%d %H:%M:%S').replace(tzinfo=pytz.timezone('US/Eastern'))
+            current_date = datetime.datetime.now(pytz.timezone('US/Eastern'))
+            # Check if current time is before 9:30 AM
+            if current_date.time() < datetime.time(9, 30):
+                current_date = current_date.replace(hour=16, minute=0, second=0, microsecond=0) - datetime.timedelta(days=1)
+            # Check if current time is after 4:00 PM
+            elif current_date.time() > datetime.time(16, 0):
+                current_date = current_date.replace(hour=16, minute=0, second=0, microsecond=0)
+            # Round down to the nearest hour between 10:00 AM and 4:00 PM
+            elif current_date.time() > datetime.time(10, 0):
+                current_date = current_date.replace(minute=0, second=0, microsecond=0)
+            # Set to 9:30 AM if between 9:30 AM and 10:00 AM
+            else:
+                current_date = current_date.replace(hour=9, minute=30, second=0, microsecond=0)
+            
+            # If latest is more recent than or equal to the adjusted current date, return 0
+            if latest >= current_date:
+                return 0
+            
             days_back = 0
             while latest.date() < current_date.date():
                 if latest.weekday() < 5:  # Monday = 0, Friday = 4
                     days_back += 1
-                latest += timedelta(days=1)
+                latest += datetime.timedelta(days=1)
             
-            return days_back  # Ensure we always request at least one day of data
+            return max(days_back, 1)  # Ensure we always request at least one day of data if there's a gap
         else:
-            print('no previous data\n')
+            print('No previous data')
             return 30  # Default to 30 days if no previous data exists
     
     except Exception as e:
-        print(f"An error occurred while getting days_back: {str(e)}\n")
+        print(f"An error occurred while getting days_back: {str(e)}")
         return 30  # Default to 30 days if there's an error
     
     finally:
         conn.close()
 
-def get_option_data(ib, symbol, exchange,expiration, strike, right, whatToShow):
-    days_back = get_days_back(symbol, expiration, strike, right, whatToShow)  # Assuming 'TRADES' as default quote_type
+def get_option_data(ib, symbol, exchange, expiration, strike, right, whatToShow):
+    days_back = get_days_back(symbol, expiration, strike, right, whatToShow)
     print(f"Days back: {days_back}")
     if days_back == 0:
         print(f"No new data to retrieve for {symbol} {exchange} {expiration} {strike} {right}. Data is up to date.")
@@ -93,8 +108,19 @@ def get_option_data(ib, symbol, exchange,expiration, strike, right, whatToShow):
         option = Option(symbol, expiration, strike, right, exchange=exchange, currency='USD')
         ib.qualifyContracts(option)
 
-        end_datetime = datetime.now(pytz.timezone('US/Eastern'))
-        start_datetime = end_datetime - timedelta(days=days_back)
+        end_datetime = datetime.datetime.now(pytz.timezone('US/Eastern')).replace(second=0, microsecond=0)
+        if end_datetime.time() < datetime.time(9, 30):
+            end_datetime = end_datetime.replace(hour=16, minute=0) - datetime.timedelta(days=1)
+        elif end_datetime.time() > datetime.time(16, 0):
+            end_datetime = end_datetime.replace(hour=16, minute=0)
+        elif end_datetime.time() < datetime.time(10, 0):
+            end_datetime = end_datetime.replace(hour=9, minute=30)
+        else:
+            end_datetime = end_datetime.replace(minute=0)
+
+        start_datetime = end_datetime - datetime.timedelta(days=days_back)
+        start_datetime = start_datetime.replace(hour=9, minute=30)
+
         bars = ib.reqHistoricalData(
             option,
             endDateTime=end_datetime,
@@ -102,30 +128,32 @@ def get_option_data(ib, symbol, exchange,expiration, strike, right, whatToShow):
             barSizeSetting='1 hour',
             whatToShow=whatToShow,
             useRTH=True,
-            timeout=5
+            timeout=60
         )
 
         df = util.df(bars)
 
-        # sys.exit()
-        if df is not None:
+        if df is not None and not df.empty:
             df['date'] = pd.to_datetime(df['date'], utc=True).dt.tz_convert('US/Eastern')
             df = df[(df['date'] >= start_datetime) & (df['date'] <= end_datetime)]
+            
+            # Filter for specific times
+            df = df[
+                (df['date'].dt.time == datetime.time(9, 30)) |
+                ((df['date'].dt.time >= datetime.time(10, 0)) & (df['date'].dt.time <= datetime.time(16, 0)))
+            ]
             
             # Add columns for option details
             df['symbol'] = symbol
             df['expiration'] = pd.to_datetime(expiration).date().isoformat()
             df['strike'] = strike
             df['right'] = right
-            df['quote_type'] = whatToShow  # Add the new column
+            df['quote_type'] = whatToShow
             
-            # Convert date column to ISO format string
             df['date'] = df['date'].dt.strftime('%Y-%m-%d %H:%M:%S')
             
-            # Ensure all required columns are present and in the correct order
             df = df[['symbol', 'expiration', 'strike', 'right', 'date', 'open', 'high', 'low', 'close', 'volume', 'average', 'barCount', 'quote_type']]
             
-            # print(df)
         return df
 
     except Exception as e:
@@ -159,7 +187,7 @@ def get_quotes():
         time.sleep(1)
         
         # Call the main function from get_vix.py
-        # get_vix_main(ib)
+        get_vix_main()
         print('getting option chains')
         option_chains = get_option_chain(ib, symbol)
 

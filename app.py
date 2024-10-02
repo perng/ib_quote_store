@@ -12,8 +12,9 @@ from sqlalchemy.orm import sessionmaker
 from flask import Flask, jsonify
 from threading import Thread
 from get_quotes import get_quotes
+from datetime import date
 
-STRIKE_PRICE_MAX = 25
+STRIKE_PRICE_MAX = 45
 STRIKE_PRICE_MIN = 5
 
 app = Flask(__name__)
@@ -57,7 +58,11 @@ def index():
     # Fetch unique values for dropdowns
     quote_types = db.session.query(DailyOption.quote_type.distinct()).all()
     symbols = db.session.query(DailyOption.symbol.distinct()).all()
-    expirations = db.session.query(DailyOption.expiration.distinct()).all()
+    # Fetch expirations and filter out past dates
+    today = date.today()
+    expirations = db.session.query(DailyOption.expiration.distinct()).filter(DailyOption.expiration >= today).all()
+    expiration_dates = [exp[0].strftime('%Y-%m-%d') for exp in expirations]
+    
     expiration_dates = [exp[0].strftime('%Y-%m-%d') for exp in expirations]
     strikes = db.session.query(DailyOption.strike.distinct()).all()
     rights = db.session.query(DailyOption.right.distinct()).all()
@@ -180,8 +185,8 @@ def get_option_chain_data(symbol, expiration, quote_type):
         DailyOption.date == last_date,  
         DailyOption.expiration == expiration,
         DailyOption.quote_type == quote_type,
-        # DailyOption.strike >= STRIKE_PRICE_MIN,
-        # DailyOption.strike <= STRIKE_PRICE_MAX
+        DailyOption.strike >= STRIKE_PRICE_MIN,
+        DailyOption.strike <= STRIKE_PRICE_MAX
     ).order_by(DailyOption.strike.asc())
     
     print("Options query:", options_query)
