@@ -69,7 +69,7 @@ def store_vix_data(df):
 def main():
     ib = IB()
     try:
-        ib.connect('127.0.0.1', 7497, clientId=23)
+        ib.connect('127.0.0.1', 7496, clientId=23)
         vix_data = get_vix_data(ib)
         if vix_data is not None:
             print(vix_data)

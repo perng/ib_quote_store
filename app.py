@@ -63,12 +63,15 @@ def index():
     expirations = db.session.query(DailyOption.expiration.distinct()).filter(DailyOption.expiration >= today).all()
     expiration_dates = [exp[0].strftime('%Y-%m-%d') for exp in expirations]
     
-    expiration_dates = [exp[0].strftime('%Y-%m-%d') for exp in expirations]
     strikes = db.session.query(DailyOption.strike.distinct()).all()
     rights = db.session.query(DailyOption.right.distinct()).all()
 
+    # Get the current VIX value
+    current_vix = get_current_vix_value()
+
     return render_template('index.html', symbols=symbols,
-                           expirations=expiration_dates, strikes=strikes, rights=rights)
+                           expirations=expiration_dates, strikes=strikes, rights=rights,
+                           current_vix=current_vix)
 
 import numpy as np
 

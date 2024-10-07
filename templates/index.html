@@ -116,6 +116,10 @@
     <!-- Options will be populated dynamically -->
   </select>
 
+  <div id="vix-value">
+    Current VIX: <span id="vix-display">{{ current_vix }}</span>
+  </div>
+
   <div id="combined-chart"></div>
   <div id="quote-info"></div>
   <div id="historical-chart"></div>
@@ -386,6 +390,26 @@
 
     // Add click handler for the "Update Quotes" button
     $('#update-quotes-btn').click(updateQuotes);
+  });
+
+  document.addEventListener('DOMContentLoaded', function() {
+    function updateVIX() {
+        fetch('/get_current_vix')
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('vix-display').textContent = data.vix;
+            });
+    }
+
+    // Update VIX value every 60 seconds
+    setInterval(updateVIX, 60000);
+
+    // Also update when the page is shown (e.g., when returning from another tab)
+    document.addEventListener('visibilitychange', function() {
+        if (!document.hidden) {
+            updateVIX();
+        }
+    });
   });
 </script>
 

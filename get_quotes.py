@@ -183,9 +183,9 @@ def get_quotes():
     ib = IB()
     
     try:
-        ib.connect('127.0.0.1', 7497, clientId=1)
+        ib.connect('127.0.0.1', 7496, clientId=1)
         time.sleep(1)
-        
+        print('connected to ib')
         # Call the main function from get_vix.py
         get_vix_main()
         print('getting option chains')
