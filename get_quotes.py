@@ -183,9 +183,18 @@ def get_quotes():
     ib = IB()
     
     try:
-        ib.connect('127.0.0.1', 7497, clientId=1)
-        time.sleep(1)
-        print('connected to ib')
+        # Attempt to connect to port 7497
+        try:
+            ib.connect('127.0.0.1', 7497, clientId=1)
+            time.sleep(1)
+            print('Connected to IB on port 7497')
+        except Exception as e:
+            print(f"Failed to connect on port 7497: {str(e)}. Trying port 7496...")
+            # Attempt to connect to port 7496 if the first connection fails
+            ib.connect('127.0.0.1', 7496, clientId=1)
+            time.sleep(1)
+            print('Connected to IB on port 7496')
+
         # Call the main function from get_vix.py
         get_vix_main()
         print('getting option chains')
