@@ -8,6 +8,7 @@ import sqlite3
 import sys
 import time
 from get_vix import main as get_vix_main
+import traceback  # Add this import at the top of your file
 
 STRIKE_PRICE_LIMIT = 100
 
@@ -137,7 +138,6 @@ async def get_option_data(ib, contract, whatToShow):
 
         df = util.df(bars)
 
-        print("empty 1")
         if df is not None:
             df['date'] = pd.to_datetime(df['date'], utc=True).dt.tz_convert('US/Eastern')
             df = df[(df['date'] >= start_datetime) & (df['date'] <= end_datetime)]
@@ -158,7 +158,7 @@ async def get_option_data(ib, contract, whatToShow):
             df['date'] = df['date'].dt.strftime('%Y-%m-%d %H:%M:%S')
             
             df = df[['symbol', 'expiration', 'strike', 'right', 'date', 'open', 'high', 'low', 'close', 'volume', 'average', 'barCount', 'quote_type']]
-            print('number of row:', len(df))    
+            print('number of row:', len(df), contract)    
         return df
 
     except Exception as e:
@@ -174,7 +174,8 @@ def get_option_chain(ib, symbol):
     print('requesting sec def opt params')
     chains = ib.reqSecDefOptParams(vix.symbol, '', vix.secType, vix.conId)
     print('filtering chains')
-    return [chain for chain in chains if chain.exchange == 'CBOE']
+    # return [chain for chain in chains if chain.exchange == 'CBOE']
+    return chains
 
 async def get_quotes(ib, option_chains):
     print('get_quotes')
@@ -193,49 +194,35 @@ async def get_quotes(ib, option_chains):
                 for strike in chain.strikes:
                     if strike <= STRIKE_PRICE_LIMIT:
                         for right in rights:
-                                for exchange in exchanges:
-                                    contract = Option(
-                                                    symbol=symbol,
-                                                    lastTradeDateOrContractMonth=expiration,
-                                                    strike=strike,
-                                                    right=right,
-                                                    exchange='SMART',
-                                                    currency='USD')
-                                    contracts.append(contract)
-
+                            contract = Option(
+                                symbol=symbol,
+                                lastTradeDateOrContractMonth=expiration,
+                                strike=strike,
+                                right=right,
+                                exchange=chain.exchange,
+                                currency='USD')
+                            contracts.append(contract)
 
     print('number of contracts:', len(contracts))
     qualified_contracts = ib.qualifyContracts(*contracts)
     print('number of quantified contracts:', len(qualified_contracts))
         
-    # Create a semaphore with a limit of 50
-    semaphore = asyncio.Semaphore(50)
-
-    async def fetch_with_semaphore(task):
-        async with semaphore:
-            try:
-                result = await task
-                return result if result is not None else pd.DataFrame()  # Return an empty DataFrame if None
-            except Exception as e:
-                print(f"Error fetching data: {e}")
-                return pd.DataFrame()  # Ret urn an empty DataFrame on error
-
     for i in range(0, len(qualified_contracts), 50):
-        tasks = [get_option_data(ib, contract, whatToShow) for contract in qualified_contracts[i:min(i+50, len(qualified_contracts))]]    
-        results = await asyncio.gather(*tasks)
-        #results = [df for df in results if ]
-        print('results 2', i, len(results))
+        try:
+            tasks = [get_option_data(ib, contract, whatToShow) for contract in qualified_contracts[i:min(i+50, len(qualified_contracts))]]    
+            results = await asyncio.gather(*tasks)
 
-        if results:
-            merged_df = pd.concat(results, ignore_index=True)
-            # Store the merged DataFrame
-            store_option_data(merged_df)
-        else:
-            print("No valid results to merge.")
-            
-                                    
-                                    
-    
+            # Check if results contain any valid DataFrames
+            valid_results = [df for df in results if df is not None]
+            if valid_results:
+                merged_df = pd.concat(valid_results, ignore_index=True)
+                # Store the merged DataFrame
+                store_option_data(merged_df)
+            else:
+                print("No valid results to merge. Skipping concatenation.")
+        except e:
+            print("get_quotes:", str(e))
+
 # Example usage
 if __name__ == "__main__":
     # get_quotes()
@@ -261,11 +248,11 @@ if __name__ == "__main__":
         print('getting option chains')
         option_chains = get_option_chain(ib, symbol)
 
-        results = asyncio.run(get_quotes(ib, option_chains))
+        asyncio.run(get_quotes(ib, option_chains))
 
     except Exception as e:
-            print(f"main: An error occurred: {str(e)}")
+        print(f"main: An error occurred: {str(e)}")
+        traceback.print_exc()  # This will print the traceback of the exception
     finally:
         ib.disconnect()
         print("IB connection closed.")
-
