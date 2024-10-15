@@ -12,12 +12,12 @@ import traceback  # Add this import at the top of your file
 
 STRIKE_PRICE_LIMIT = 100
 
-def store_option_data(df):
+# Create a global SQLite connection and cursor
+conn = sqlite3.connect('options.db')
+cursor = conn.cursor()
+
+def store_option_data(df: pd.DataFrame) -> None:
     try:
-        
-        conn = sqlite3.connect('options.db')
-        cursor = conn.cursor()
-        
         if df is not None and not df.empty:
             # Convert DataFrame to list of tuples for SQLite insertion
             data_to_insert = df.to_records(index=False).tolist()
@@ -32,21 +32,14 @@ def store_option_data(df):
         else:
             latest = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         
-        
         conn.commit()
         if df is not None and not df.empty:
             print(f"Data stored in SQLite. Row count: {len(df)}")
 
     except Exception as e:
         print(f"store_option_data: An error occurred while storing data: {str(e)}")
-    finally:
-        conn.close()
 
-def get_days_back(symbol, expiration, strike, right, quote_type):
-    return 2
-    conn = sqlite3.connect('options.db')
-    cursor = conn.cursor()
-    
+def get_days_back(symbol: str, expiration: str, strike: float, right: str, quote_type: str) -> int:
     try:
         expiration_date = datetime.datetime.strptime(expiration, '%Y%m%d').date().isoformat()
         
@@ -91,11 +84,8 @@ def get_days_back(symbol, expiration, strike, right, quote_type):
     except Exception as e:
         print(f"get_days_back: An error occurred while getting days_back: {str(e)}")
         return 30  # Default to 30 days if there's an error
-    
-    finally:
-        conn.close()
 
-async def get_option_data(ib, contract, whatToShow):
+async def get_option_data(ib: IB, contract: Option, whatToShow: str) -> pd.DataFrame:
     print('get_option_data', contract)
     symbol = contract.symbol
     expiration = contract.lastTradeDateOrContractMonth
@@ -166,7 +156,7 @@ async def get_option_data(ib, contract, whatToShow):
         return None
 
 
-def get_option_chain(ib, symbol):
+def get_option_chain(ib: IB, symbol: str) -> list:
     print('get_option_chain', symbol)
     vix = Index('VIX', 'CBOE')
     print('qualifying contracts')
@@ -174,34 +164,30 @@ def get_option_chain(ib, symbol):
     print('requesting sec def opt params')
     chains = ib.reqSecDefOptParams(vix.symbol, '', vix.secType, vix.conId)
     print('filtering chains')
-    # return [chain for chain in chains if chain.exchange == 'CBOE']
     return chains
 
-async def get_quotes(ib, option_chains):
+async def get_quotes(ib: IB, option_chains: list) -> None:
     print('get_quotes')
-    # Import the main function from get_vix.py
-
     symbol = 'VIX'
     rights = ['P', 'C']
     exchanges = ['SMART', 'CBOE']   
     whatToShow = 'TRADES'
-    STRIKE_PRICE_LIMIT = 100
 
     print('processing option chains')
     contracts = []
     for chain in option_chains:
-            for expiration in chain.expirations:
-                for strike in chain.strikes:
-                    if strike <= STRIKE_PRICE_LIMIT:
-                        for right in rights:
-                            contract = Option(
-                                symbol=symbol,
-                                lastTradeDateOrContractMonth=expiration,
-                                strike=strike,
-                                right=right,
-                                exchange=chain.exchange,
-                                currency='USD')
-                            contracts.append(contract)
+        for expiration in chain.expirations:
+            for strike in chain.strikes:
+                if strike <= STRIKE_PRICE_LIMIT:
+                    for right in rights:
+                        contract = Option(
+                            symbol=symbol,
+                            lastTradeDateOrContractMonth=expiration,
+                            strike=strike,
+                            right=right,
+                            exchange=chain.exchange,
+                            currency='USD')
+                        contracts.append(contract)
 
     print('number of contracts:', len(contracts))
     qualified_contracts = ib.qualifyContracts(*contracts)
@@ -220,12 +206,11 @@ async def get_quotes(ib, option_chains):
                 store_option_data(merged_df)
             else:
                 print("No valid results to merge. Skipping concatenation.")
-        except e:
+        except Exception as e:  # Fixed exception variable name
             print("get_quotes:", str(e))
 
 # Example usage
 if __name__ == "__main__":
-    # get_quotes()
     nest_asyncio.apply()
     symbol = 'VIX'
     ib = IB()
@@ -254,5 +239,6 @@ if __name__ == "__main__":
         print(f"main: An error occurred: {str(e)}")
         traceback.print_exc()  # This will print the traceback of the exception
     finally:
+        conn.close()  # Close the connection when done
         ib.disconnect()
         print("IB connection closed.")
