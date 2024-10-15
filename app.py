@@ -13,6 +13,7 @@ from flask import Flask, jsonify
 from threading import Thread
 from get_quotes import get_quotes
 from datetime import date
+import logging
 
 STRIKE_PRICE_MAX = 45
 STRIKE_PRICE_MIN = 5
@@ -123,8 +124,7 @@ def get_option_chain():
     symbol = request.args.get('symbol')
     quote_type = request.args.get('quote_type')
 
-    option_chain_data = get_option_chain_data(symbol, expiration, quote_type)
-    print(option_chain_data)
+    option_chain_data = get_option_chain_data(symbol, expiration, quote_type)    
     df = pd.DataFrame(option_chain_data)
     
 
@@ -136,18 +136,17 @@ def get_option_chain():
     call_prices = [float(x) if isinstance(x, (int, float, str)) and x != '' else x for x in df['callLastPrice'].tolist()]
     put_prices = [float(x) if isinstance(x, (int, float, str)) and x != '' else x for x in df['putLastPrice'].tolist()]
     
+    print('preparing result')
     result = {
         'strikePrices': strike_prices,
         'callPrices': call_prices,
         'putPrices': put_prices,
         'callVolumes': df['callVolume'].tolist(),
         'putVolumes': df['putVolume'].tolist(),
-        'vixValue': get_current_vix_value(),
+        'vixValue': get_current_vix(),
         'quoteDate': quote_date
     }
-    
-    app.logger.info(f"Sending data: {result}")  # Log the data being sent
-    
+
     return jsonify(result)
 
 class OptionDayQuote:
@@ -192,10 +191,8 @@ def get_option_chain_data(symbol, expiration, quote_type):
         DailyOption.strike <= STRIKE_PRICE_MAX
     ).order_by(DailyOption.strike.asc())
     
-    print("Options query:", options_query)
     options = options_query.all()
     print('Number of options found:', len(options))
-    print('First few options:', options[:5] if options else 'None')
 
     option_chain = defaultdict(OptionDayQuote)
     for option in options:
@@ -209,12 +206,10 @@ def get_option_chain_data(symbol, expiration, quote_type):
             o.put_volume = option.volume            
 
     print("Number of items in option_chain:", len(option_chain))
-    print("First few items in option_chain:", list(option_chain.items())[:5])
 
     options = option_chain.values()
     options = sorted(options, key=lambda x: x.strike)
     print("Number of final options:", len(options))
-    print("First few final options:", options[:5])
 
     return [
         {
@@ -226,10 +221,6 @@ def get_option_chain_data(symbol, expiration, quote_type):
         }
         for option in options
     ]
-
-def get_current_vix_value():
-    latest_vix = VixData.query.order_by(VixData.date.desc()).first()
-    return latest_vix.close if latest_vix else None
 
 @app.route('/option_calculator', methods=['GET', 'POST'])
 def option_calculator():
@@ -288,6 +279,18 @@ def calculate_profit_loss(stock, shares, options):
 def start_get_quotes():
     get_quotes()
 
+def get_current_vix():    
+    latest_vix = VixData.query.order_by(VixData.date.desc()).first()
+    return float(latest_vix.close) if latest_vix else None
+
+
+@app.route('/get_current_vix_value', methods=['GET'])
+def get_current_vix_value():
+    app.logger.info("get_current_vix_value endpoint called")
+    latest_vix = get_current_vix()
+    return jsonify({'vix': latest_vix})
+
 if __name__ == '__main__':
-    # app.run(debug=True)
-    app.run(host='0.0.0.0', port=5000)
+    logging.basicConfig(level=logging.INFO)
+    app.logger.info("Starting the Flask application")
+    app.run(debug=True, host='0.0.0.0', port=5000)

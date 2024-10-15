@@ -394,7 +394,7 @@
 
   document.addEventListener('DOMContentLoaded', function() {
     function updateVIX() {
-        fetch('/get_current_vix')
+        fetch('/get_current_vix_value')
             .then(response => response.json())
             .then(data => {
                 document.getElementById('vix-display').textContent = data.vix;
