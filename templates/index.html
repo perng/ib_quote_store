@@ -117,7 +117,7 @@
   </select>
 
   <div id="vix-value">
-    Current VIX: <span id="vix-display">{{ current_vix }}</span>
+    Current VIX: <span id="vix-display">Loading...</span>
   </div>
 
   <div id="combined-chart"></div>
@@ -397,9 +397,16 @@
         fetch('/get_current_vix_value')
             .then(response => response.json())
             .then(data => {
-                document.getElementById('vix-display').textContent = data.vix;
+                document.getElementById('vix-display').textContent = data.vix.toFixed(2);
+            })
+            .catch(error => {
+                console.error('Error fetching VIX value:', error);
+                document.getElementById('vix-display').textContent = 'Error';
             });
     }
+
+    // Update VIX value immediately when the page loads
+    updateVIX();
 
     // Update VIX value every 60 seconds
     setInterval(updateVIX, 60000);
