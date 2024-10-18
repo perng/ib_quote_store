@@ -14,6 +14,7 @@ from threading import Thread
 from get_quotes import get_quotes
 from datetime import date
 import logging
+import numpy as np
 
 STRIKE_PRICE_MAX = 45
 STRIKE_PRICE_MIN = 5
@@ -73,8 +74,6 @@ def index():
     return render_template('index.html', symbols=symbols,
                            expirations=expiration_dates, strikes=strikes, rights=rights,
                            current_vix=current_vix)
-
-import numpy as np
 
 @app.route('/get_chart_data')
 def get_chart_data():
@@ -289,6 +288,68 @@ def get_current_vix_value():
     app.logger.info("get_current_vix_value endpoint called")
     latest_vix = get_current_vix()
     return jsonify({'vix': latest_vix})
+
+@app.route('/expiration_profit_loss', methods=['GET', 'POST'])
+def expiration_profit_loss():
+    if request.method == 'POST':
+        print("Received POST request: expiration_profit_loss")
+        options = []
+        for key, value in request.form.items():
+            if key.startswith('option_'):
+                index = key.split('_')[1]
+                option_type = request.form.get(f'option_type_{index}')
+                position = request.form.get(f'position_{index}')
+                number = request.form.get(f'number_{index}')
+                strike = request.form.get(f'strike_{index}')
+                cost = request.form.get(f'cost_{index}')
+                
+                # Only process the option if all fields are provided
+                if strike and cost and number:
+                    try:
+                        options.append({
+                            'type': option_type,
+                            'position': position,
+                            'number': int(number),
+                            'strike': float(strike),
+                            'cost': float(cost)
+                        })
+                    except ValueError:
+                        print(f"Invalid data for option {index}: number={number}, strike={strike}, cost={cost}")
+        
+        print(f"Processed options: {options}")
+        if options:
+            chart_data = calculate_expiration_profit_loss(options)            
+            return jsonify(chart_data)
+        else:            
+            return jsonify({'error': 'No valid options provided'}), 400
+    
+    return render_template('expiration_profit_loss.html')
+
+def calculate_expiration_profit_loss(options):
+    strikes = [option['strike'] for option in options]
+    min_price = min(strikes) * 0.5
+    max_price = max(strikes) * 1.5
+    stock_prices = np.linspace(min_price, max_price, 100)
+    
+    profits = []
+    for price in stock_prices:
+        profit = 0
+        for option in options:
+            if option['type'] == 'call':
+                option_profit = max(0, price - option['strike']) - option['cost']
+            else:  # put
+                option_profit = max(0, option['strike'] - price) - option['cost']
+            
+            if option['position'] == 'short':
+                option_profit = -option_profit
+            
+            profit += option_profit * 100 * option['number']  # 100 shares per contract, multiplied by number of contracts
+        profits.append(profit)
+    
+    return {
+        'stockPrices': stock_prices.tolist(),
+        'profits': profits
+    }
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)

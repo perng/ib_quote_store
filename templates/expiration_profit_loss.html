@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Expiration Profit and Loss</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        table {
+            border-collapse: collapse;
+            width: 100%;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+    </style>
+</head>
+<body>
+    <h1>Expiration Profit and Loss</h1>
+    <form id="optionForm">
+        <table id="optionTable">
+            <thead>
+                <tr>
+                    <th>Position</th>
+                    <th>Type</th>
+                    <th>Number</th>
+                    <th>Strike</th>
+                    <th>Cost</th>
+                </tr>
+            </thead>
+            <tbody>
+                <!-- Initial rows will be added here -->
+            </tbody>
+        </table>
+        <button type="button" id="addRow">Add Row</button>
+        <button type="button" id="compute">Compute</button>
+    </form>
+    <div id="chart"></div>
+
+    <script>
+        const optionTable = document.getElementById('optionTable').getElementsByTagName('tbody')[0];
+        const addRowButton = document.getElementById('addRow');
+        const computeButton = document.getElementById('compute');
+        let rowCount = 0;
+
+        function addRow() {
+            const row = optionTable.insertRow();
+            row.innerHTML = `
+                <td>
+                    <select name="position_${rowCount}">
+                        <option value="long">Long</option>
+                        <option value="short">Short</option>
+                    </select>
+                </td>
+                <td>
+                    <select name="option_type_${rowCount}">
+                        <option value="call">Call</option>
+                        <option value="put">Put</option>
+                    </select>
+                </td>
+                <td><input type="number" name="number_${rowCount}" min="1" value="1" required></td>
+                <td><input type="number" name="strike_${rowCount}" step="0.01" required></td>
+                <td><input type="number" name="cost_${rowCount}" step="0.01" required></td>
+                <td><button type="button" class="clear-row">Clear</button></td>
+            `;
+            rowCount++;
+            addRowListeners(row);
+        }
+
+        function addRowListeners(row) {
+            const inputs = row.querySelectorAll('input, select');
+            inputs.forEach(input => {
+                input.addEventListener('change', () => {
+                    if (isRowComplete(row)) {
+                        updateChart();
+                    }
+                });
+                input.addEventListener('blur', () => {
+                    if (isRowComplete(row)) {
+                        updateChart();
+                    }
+                });
+            });
+
+            const clearButton = row.querySelector('.clear-row');
+            clearButton.addEventListener('click', () => clearRow(row));
+        }
+
+        function isRowComplete(row) {
+            const inputs = row.querySelectorAll('input[type="number"]');
+            return Array.from(inputs).every(input => input.value !== '');
+        }
+
+        function updateChart() {
+            const formData = getFormData();
+            if (formData.has('option_0')) {
+                fetch('/expiration_profit_loss', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(data => {
+                    drawChart(data);
+                })
+                .catch(error => {
+                    console.error("Error updating chart:", error);
+                });
+            }
+        }
+
+        function getFormData() {
+            const formData = new FormData();
+            const rows = optionTable.getElementsByTagName('tr');
+            let optionCount = 0;
+
+            for (let i = 0; i < rows.length; i++) {
+                const strike = rows[i].querySelector('input[name^="strike_"]')?.value;
+                const cost = rows[i].querySelector('input[name^="cost_"]')?.value;
+                const number = rows[i].querySelector('input[name^="number_"]')?.value;
+
+                if (strike && cost && number) {
+                    const position = rows[i].querySelector('select[name^="position_"]')?.value;
+                    const optionType = rows[i].querySelector('select[name^="option_type_"]')?.value;
+
+                    formData.append(`option_${optionCount}`, '');
+                    formData.append(`position_${optionCount}`, position);
+                    formData.append(`option_type_${optionCount}`, optionType);
+                    formData.append(`number_${optionCount}`, number);
+                    formData.append(`strike_${optionCount}`, strike);
+                    formData.append(`cost_${optionCount}`, cost);
+
+                    optionCount++;
+                }
+            }
+
+            return formData;
+        }
+
+        function clearRow(row) {
+            const inputs = row.querySelectorAll('input[type="number"]');
+            inputs.forEach(input => {
+                if (input.name.startsWith('number_')) {
+                    input.value = '1';  // Reset number of contracts to 1
+                } else {
+                    input.value = '';  // Clear other numeric inputs
+                }
+            });
+
+            const selects = row.querySelectorAll('select');
+            selects.forEach(select => {
+                select.selectedIndex = 0;  // Reset selects to first option
+            });
+
+            updateChart();  // Update the chart after clearing
+        }
+
+        // Add initial 2 rows
+        for (let i = 0; i < 2; i++) {
+            addRow();
+        }
+
+        addRowButton.addEventListener('click', addRow);
+
+        computeButton.addEventListener('click', updateChart);
+
+        function drawChart(data) {
+            d3.select("#chart").selectAll("*").remove();
+
+            const margin = {top: 20, right: 20, bottom: 30, left: 50};
+            const width = 800 - margin.left - margin.right;
+            const height = 400 - margin.top - margin.bottom;
+
+            const x = d3.scaleLinear()
+                .domain(d3.extent(data.stockPrices))
+                .range([0, width]);
+
+            const y = d3.scaleLinear()
+                .domain(d3.extent(data.profits))
+                .range([height, 0]);
+
+            const line = d3.line()
+                .x((d, i) => x(data.stockPrices[i]))
+                .y(d => y(d));
+
+            const svg = d3.select("#chart").append("svg")
+                .attr("width", width + margin.left + margin.right)
+                .attr("height", height + margin.top + margin.bottom)
+                .append("g")
+                .attr("transform", `translate(${margin.left},${margin.top})`);
+
+            // Add break-even line
+            const breakEvenIndex = data.profits.findIndex(profit => profit >= 0);
+            if (breakEvenIndex !== -1) {
+                const breakEvenPrice = data.stockPrices[breakEvenIndex];
+                svg.append("line")
+                    .attr("x1", x(breakEvenPrice))
+                    .attr("y1", 0)
+                    .attr("x2", x(breakEvenPrice))
+                    .attr("y2", height)
+                    .attr("stroke", "red")
+                    .attr("stroke-dasharray", "5,5");
+            }
+
+            // Add horizontal line at y=0 (break-even)
+            svg.append("line")
+                .attr("x1", 0)
+                .attr("y1", y(0))
+                .attr("x2", width)
+                .attr("y2", y(0))
+                .attr("stroke", "black")
+                .attr("stroke-dasharray", "5,5");
+
+            svg.append("path")
+                .datum(data.profits)
+                .attr("fill", "none")
+                .attr("stroke", "steelblue")
+                .attr("stroke-width", 1.5)
+                .attr("d", line);
+
+            svg.append("g")
+                .attr("transform", `translate(0,${height})`)
+                .call(d3.axisBottom(x));
+
+            svg.append("g")
+                .call(d3.axisLeft(y));
+
+            // Add labels
+            svg.append("text")
+                .attr("x", width / 2)
+                .attr("y", height + margin.bottom)
+                .style("text-anchor", "middle")
+                .text("Stock Price");
+
+            svg.append("text")
+                .attr("transform", "rotate(-90)")
+                .attr("y", 0 - margin.left)
+                .attr("x", 0 - (height / 2))
+                .attr("dy", "1em")
+                .style("text-anchor", "middle")
+                .text("Profit/Loss");
+
+            // Add interactive elements
+            const focus = svg.append("g")
+                .attr("class", "focus")
+                .style("display", "none");
+
+            focus.append("circle")
+                .attr("r", 5);
+
+            focus.append("text")
+                .attr("x", 15)
+                .attr("dy", ".31em");
+
+            svg.append("rect")
+                .attr("class", "overlay")
+                .attr("width", width)
+                .attr("height", height)
+                .style("opacity", 0)
+                .on("mouseover", () => focus.style("display", null))
+                .on("mouseout", () => focus.style("display", "none"))
+                .on("mousemove", mousemove);
+
+            function mousemove(event) {
+                const bisect = d3.bisector(d => d).left;
+                const x0 = x.invert(d3.pointer(event)[0]);
+                const i = bisect(data.stockPrices, x0, 1);
+                const d0 = data.stockPrices[i - 1];
+                const d1 = data.stockPrices[i];
+                const d = x0 - d0 > d1 - x0 ? d1 : d0;
+                const profit = data.profits[data.stockPrices.indexOf(d)];
+                focus.attr("transform", `translate(${x(d)},${y(profit)})`);
+                focus.select("text")
+                    .attr("dy", "-1em")  // Move text up a bit
+                    .text(`Price: $${d.toFixed(2)}`)
+                    .append("tspan")
+                    .attr("x", 15)
+                    .attr("dy", "1.2em")
+                    .text(`P/L: $${profit.toFixed(2)}`);
+            }
+        }
+    </script>
+</body>
+</html>
