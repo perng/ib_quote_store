@@ -4,20 +4,40 @@ import pandas as pd
 import json
 import numpy as np
 from datetime import datetime, timedelta
+from functools import lru_cache, wraps
+import time
 
 def smile_route():
     return render_template('smile.html')
 
-def get_smile_data():
-    symbol = request.args.get('symbol', 'SPY')
-    
+# Custom time-based cache decorator
+def timed_lru_cache(seconds: int, maxsize: int = 128):
+    def wrapper_cache(func):
+        func = lru_cache(maxsize=maxsize)(func)
+        func.lifetime = seconds
+        func.expiration = time.time() + seconds
+
+        @wraps(func)
+        def wrapped_func(*args, **kwargs):
+            if time.time() > func.expiration:
+                func.cache_clear()
+                func.expiration = time.time() + func.lifetime
+
+            return func(*args, **kwargs)
+
+        return wrapped_func
+
+    return wrapper_cache
+
+@timed_lru_cache(seconds=3600)  # Cache for 1 hour
+def fetch_option_data(symbol):
     # Fetch option chain data
     stock = yf.Ticker(symbol)
     
     # Get all expiration dates
     expirations = stock.options
     if not expirations:
-        return json.dumps({"error": "No options data available for this symbol"})
+        return {"error": "No options data available for this symbol"}
     
     # Create a list to hold all the figures
     figures_data = []
@@ -57,6 +77,14 @@ def get_smile_data():
 
         figures_data.append(figure_data)
 
+    return {'symbol': symbol, 'figures': figures_data}
+
+def get_smile_data():
+    symbol = request.args.get('symbol', 'SPY')
+    
+    # Fetch data (will use cached data if available and not expired)
+    data = fetch_option_data(symbol)
+
     # Custom JSON encoder to handle NumPy types
     class NumpyEncoder(json.JSONEncoder):
         def default(self, obj):
@@ -69,4 +97,4 @@ def get_smile_data():
             return super(NumpyEncoder, self).default(obj)
 
     # Convert all figures data to JSON using the custom encoder
-    return json.dumps({'symbol': symbol, 'figures': figures_data}, cls=NumpyEncoder)
+    return json.dumps(data, cls=NumpyEncoder)
