@@ -51,7 +51,11 @@
                         const layout = {
                             title: `Volatility Smile for ${data.symbol} (Expiration: ${figureData.expiration})`,
                             xaxis: {title: 'Strike Price'},
-                            yaxis: {title: 'Implied Volatility'},
+                            yaxis: {
+                                title: 'Implied Volatility',
+                                range: [data.y_min, data.y_max],
+                                fixedrange: true  // This prevents y-axis from auto-scaling
+                            },
                             legend: {title: 'Option Type'}
                         };
 
