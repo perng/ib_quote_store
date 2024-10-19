@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Volatility Smile</title>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+</head>
+<body>
+    <h1>Volatility Smile</h1>
+    <input type="text" id="symbol" placeholder="Enter symbol (e.g., SPY)">
+    <button onclick="getSmileData()">Get Volatility Smiles</button>
+    <div id="plots"></div>
+
+    <script>
+        function getSmileData() {
+            const symbol = document.getElementById('symbol').value;
+            $.ajax({
+                url: '/get_smile_data',
+                data: { symbol: symbol },
+                success: function(response) {
+                    const data = JSON.parse(response);
+                    const plotsDiv = document.getElementById('plots');
+                    plotsDiv.innerHTML = ''; // Clear previous plots
+                    
+                    data.figures.forEach((figureData, index) => {
+                        const newDiv = document.createElement('div');
+                        newDiv.id = `plot-${index}`;
+                        newDiv.style.width = '100%';
+                        newDiv.style.height = '500px';
+                        plotsDiv.appendChild(newDiv);
+
+                        const traces = [
+                            {
+                                x: figureData.calls.x,
+                                y: figureData.calls.y,
+                                mode: 'lines+markers',
+                                name: 'Calls',
+                                line: {color: 'blue'}
+                            },
+                            {
+                                x: figureData.puts.x,
+                                y: figureData.puts.y,
+                                mode: 'lines+markers',
+                                name: 'Puts',
+                                line: {color: 'red'}
+                            }
+                        ];
+
+                        const layout = {
+                            title: `Volatility Smile for ${data.symbol} (Expiration: ${figureData.expiration})`,
+                            xaxis: {title: 'Strike Price'},
+                            yaxis: {title: 'Implied Volatility'},
+                            legend: {title: 'Option Type'}
+                        };
+
+                        Plotly.newPlot(`plot-${index}`, traces, layout);
+                    });
+                },
+                error: function(jqXHR, textStatus, errorThrown) {
+                    console.error("AJAX error: " + textStatus + ' : ' + errorThrown);
+                }
+            });
+        }
+    </script>
+</body>
+</html>

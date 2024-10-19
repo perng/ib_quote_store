@@ -15,6 +15,7 @@ from get_quotes import get_quotes
 from datetime import date
 import logging
 import numpy as np
+from smile import smile_route, get_smile_data
 
 STRIKE_PRICE_MAX = 45
 STRIKE_PRICE_MIN = 5
@@ -350,6 +351,14 @@ def calculate_expiration_profit_loss(options):
         'stockPrices': stock_prices.tolist(),
         'profits': profits
     }
+
+@app.route('/smile')
+def smile():
+    return smile_route()
+
+@app.route('/get_smile_data')
+def smile_data():
+    return get_smile_data()
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
