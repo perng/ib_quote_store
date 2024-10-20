@@ -3,6 +3,46 @@
 {% block title %}VIX Option Price{% endblock %}
 
 {% block content %}
+  <style>
+    .layout-container {
+      display: flex;
+      width: 100%;
+      height: 600px; /* Adjust as needed */
+      margin-top: 20px;
+    }
+    .chart-container {
+      flex: 2;
+      order: 1;
+      height: 100%;
+      width: 66.67%; /* 2/3 of the width */
+    }
+    .table-container {
+      flex: 1;
+      order: 2;
+      height: 100%;
+      width: 33.33%; /* 1/3 of the width */
+      overflow-y: auto;
+    }
+    #quote-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    #quote-table th, #quote-table td {
+      border: 1px solid #ddd;
+      padding: 8px;
+      text-align: right;
+    }
+    #quote-table th {
+      background-color: #f2f2f2;
+      position: sticky;
+      top: 0;
+    }
+    #combined-chart, #historical-chart {
+      width: 100%;
+      height: 45%; /* Adjust as needed */
+    }
+  </style>
+
   <!-- Add the "Update Quotes" button here -->
   <button id="update-quotes-btn">Update Quotes</button>
   <div id="update-status"></div>
@@ -16,23 +56,72 @@
     Current VIX: <span id="vix-display">Loading...</span>
   </div>
 
-  <div id="combined-chart"></div>
-  <div id="quote-info"></div>
-  <div id="historical-chart"></div>
-  <table id="quote-table">
-    <thead>
-      <tr>
-        <th>Call Price</th>
-        <th>Call Volume</th>
-        <th>Strike</th>
-        <th>Put Volume</th>
-        <th>Put Price</th>
-      </tr>
-    </thead>
-    <tbody>
-      <!-- Table rows will be populated dynamically -->
-    </tbody>
-  </table>
+  <div class="layout-container">
+    <div class="chart-container">
+      <div id="combined-chart"></div>
+      <div id="quote-info"></div>
+      <div id="historical-chart"></div>
+    </div>
+    <div class="table-container">
+      <table id="quote-table">
+        <thead>
+          <tr>
+            <th>Call Price</th>
+            <th>Call Volume</th>
+            <th>Strike</th>
+            <th>Put Volume</th>
+            <th>Put Price</th>
+          </tr>
+        </thead>
+        <tbody>
+          <!-- Table rows will be populated dynamically -->
+        </tbody>
+      </table>
+    </div>
+  </div>
+{% endblock %}
+
+{% block styles %}
+<style>
+  .layout-container {
+    display: flex;
+    width: 100%;
+    height: 600px; /* Adjust as needed */
+    margin-top: 20px;
+  }
+  /* Adjust the flex proportions to make the chart narrower */
+  .chart-container {
+    flex: 1; /* Changed from 2 to 3 */
+    order: 1;
+    width: 60%;
+    height: 100%;
+  }
+  .table-container {
+    flex: 1; /* Changed from 1 to 2 */
+    order: 2;
+    width: 30%;
+    height: 100%;
+    overflow-y: auto;
+  }
+  #quote-table {
+    width: 30%;
+    border-collapse: collapse;
+  }
+  #quote-table th, #quote-table td {
+    border: 1px solid #ddd;
+    padding: 8px;
+    text-align: right;
+  }
+  #quote-table th {
+    background-color: #f2f2f2;
+    position: sticky;
+    top: 0;
+  }
+  #combined-chart, #historical-chart {
+    width: 60%;
+    height: 45%; /* Adjust as needed */
+  }
+</style>
 {% endblock %}
 
 {% block scripts %}
@@ -139,11 +228,12 @@
         ],
         barmode: 'group',
         legend: { orientation: 'h', y: -0.2 },
-        width: 1200, // Added to set the width of the chart
-        height: 600  // Added to maintain the aspect ratio
+        width: null,  // Use container width
+        height: null, // Use container height
+        autosize: true
       };
 
-      Plotly.newPlot('combined-chart', combinedData, layout);
+      Plotly.newPlot('combined-chart', combinedData, layout, {responsive: true});
 
       // Update the quote info
       $('#quote-info').text(`Quote Date: ${data.quoteDate}`);
@@ -238,11 +328,12 @@
         legend: { orientation: 'h', x: 0.5, xanchor: 'center' },
         margin: { t: 50, r: 50, b: 50, l: 50 },
         grid: { rows: 2, columns: 1, subplots: [['xy'], ['xy2']] },
-        width: 1200, // Added to set the width of the chart
-        height: 600  // Added to maintain the aspect ratio
+        width: null,  // Use container width
+        height: null, // Use container height
+        autosize: true
       };
 
-      Plotly.newPlot('historical-chart', data, layout);
+      Plotly.newPlot('historical-chart', data, layout, {responsive: true});
       document.getElementById('historical-chart').style.display = 'block';
     });
   }
