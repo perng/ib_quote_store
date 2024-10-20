@@ -4,6 +4,9 @@
 
 {% block content %}
   <style>
+    .expiration-section {
+      margin-bottom: 40px;
+    }
     .layout-container {
       display: flex;
       width: 100%;
@@ -23,105 +26,37 @@
       width: 33.33%; /* 1/3 of the width */
       overflow-y: auto;
     }
-    #quote-table {
+    .quote-table {
       width: 100%;
       border-collapse: collapse;
     }
-    #quote-table th, #quote-table td {
+    .quote-table th, .quote-table td {
       border: 1px solid #ddd;
       padding: 8px;
       text-align: right;
     }
-    #quote-table th {
+    .quote-table th {
       background-color: #f2f2f2;
       position: sticky;
       top: 0;
     }
-    #combined-chart, #historical-chart {
+    .combined-chart, .historical-chart {
       width: 100%;
       height: 45%; /* Adjust as needed */
     }
   </style>
 
-  <!-- Add the "Update Quotes" button here -->
   <button id="update-quotes-btn">Update Quotes</button>
   <div id="update-status"></div>
-
-  <label for="expiration">Select Expiration Date:</label>
-  <select id="expiration">
-    <!-- Options will be populated dynamically -->
-  </select>
 
   <div id="vix-value">
     Current VIX: <span id="vix-display">Loading...</span>
   </div>
 
-  <div class="layout-container">
-    <div class="chart-container">
-      <div id="combined-chart"></div>
-      <div id="quote-info"></div>
-      <div id="historical-chart"></div>
-    </div>
-    <div class="table-container">
-      <table id="quote-table">
-        <thead>
-          <tr>
-            <th>Call Price</th>
-            <th>Call Volume</th>
-            <th>Strike</th>
-            <th>Put Volume</th>
-            <th>Put Price</th>
-          </tr>
-        </thead>
-        <tbody>
-          <!-- Table rows will be populated dynamically -->
-        </tbody>
-      </table>
-    </div>
+  <div id="expiration-container">
+    <!-- This will be populated with charts and tables for each expiration date -->
   </div>
-{% endblock %}
 
-{% block styles %}
-<style>
-  .layout-container {
-    display: flex;
-    width: 100%;
-    height: 600px; /* Adjust as needed */
-    margin-top: 20px;
-  }
-  /* Adjust the flex proportions to make the chart narrower */
-  .chart-container {
-    flex: 1; /* Changed from 2 to 3 */
-    order: 1;
-    width: 60%;
-    height: 100%;
-  }
-  .table-container {
-    flex: 1; /* Changed from 1 to 2 */
-    order: 2;
-    width: 30%;
-    height: 100%;
-    overflow-y: auto;
-  }
-  #quote-table {
-    width: 30%;
-    border-collapse: collapse;
-  }
-  #quote-table th, #quote-table td {
-    border: 1px solid #ddd;
-    padding: 8px;
-    text-align: right;
-  }
-  #quote-table th {
-    background-color: #f2f2f2;
-    position: sticky;
-    top: 0;
-  }
-  #combined-chart, #historical-chart {
-    width: 60%;
-    height: 45%; /* Adjust as needed */
-  }
-</style>
 {% endblock %}
 
 {% block scripts %}
@@ -129,9 +64,8 @@
   // Inject the expirations data from Python into JavaScript
   const expirations = {{ expirations|tojson|safe }};
 
-  // Function to update and show the option chain chart
-  function updateOptionChain() {
-    const expirationDate = $('#expiration').val();
+  // Function to update and show the option chain chart for a specific expiration
+  function updateOptionChain(expirationDate, containerId) {
     $.get('/get_option_chain', { expiration: expirationDate, symbol: 'VIX', quote_type: 'TRADES' }, function(data) {
       const strikePrices = data.strikePrices;
       const callPrices = data.callPrices;
@@ -233,13 +167,13 @@
         autosize: true
       };
 
-      Plotly.newPlot('combined-chart', combinedData, layout, {responsive: true});
+      Plotly.newPlot(`combined-chart-${containerId}`, combinedData, layout, {responsive: true});
 
       // Update the quote info
-      $('#quote-info').text(`Quote Date: ${data.quoteDate}`);
+      $(`#quote-info-${containerId}`).text(`Quote Date: ${data.quoteDate}`);
 
       // Populate the quote table
-      const tableBody = $('#quote-table tbody');
+      const tableBody = $(`#quote-table-${containerId} tbody`);
       tableBody.empty();
       console.log("Populating table with", data.strikePrices.length, "rows");
       for (let i = 0; i < data.strikePrices.length; i++) {
@@ -260,16 +194,16 @@
       console.log("Table populated");
 
       // Add interactivity for clicking on bars or lines
-      const chartDiv = document.getElementById('combined-chart');
+      const chartDiv = document.getElementById(`combined-chart-${containerId}`);
       chartDiv.on('plotly_click', function(data){
         const strikePrice = data.points[0].x;
-        showHistoricalChart(strikePrice);
+        showHistoricalChart(strikePrice, containerId);
       });
     });
   }
 
-  // Function to display the historical price chart with candlestick, volume, and VIX values
-  function showHistoricalChart(strikePrice) {
+  // Function to display the historical price chart (update to use containerId)
+  function showHistoricalChart(strikePrice, containerId) {
     $.get('/get_historical_data', { strikePrice: strikePrice }, function(ohlcvData) {
       const candlestickTrace = {
         x: ohlcvData.map(d => d.date),
@@ -333,10 +267,57 @@
         autosize: true
       };
 
-      Plotly.newPlot('historical-chart', data, layout, {responsive: true});
-      document.getElementById('historical-chart').style.display = 'block';
+      Plotly.newPlot(`historical-chart-${containerId}`, data, layout, {responsive: true});
+      $(`#historical-chart-${containerId}`).css('display', 'block');
     });
   }
+
+  // Function to create the HTML structure for each expiration date
+  function createExpirationSection(expirationDate, index) {
+    const containerId = `expiration-${index}`;
+    return `
+      <div class="expiration-section" id="${containerId}">
+        <h2>Expiration: ${expirationDate}</h2>
+        <div class="layout-container">
+          <div class="chart-container">
+            <div id="combined-chart-${containerId}" class="combined-chart"></div>
+            <div id="quote-info-${containerId}"></div>
+            <div id="historical-chart-${containerId}" class="historical-chart"></div>
+          </div>
+          <div class="table-container">
+            <table id="quote-table-${containerId}" class="quote-table">
+              <thead>
+                <tr>
+                  <th>Call Price</th>
+                  <th>Call Volume</th>
+                  <th>Strike</th>
+                  <th>Put Volume</th>
+                  <th>Put Price</th>
+                </tr>
+              </thead>
+              <tbody>
+                <!-- Table rows will be populated dynamically -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  // Initial load
+  $(document).ready(function() {
+    const expirationContainer = $('#expiration-container');
+    
+    // Create sections for each expiration date
+    expirations.forEach((date, index) => {
+      expirationContainer.append(createExpirationSection(date, index));
+      updateOptionChain(date, `expiration-${index}`);
+    });
+
+    // Add click handler for the "Update Quotes" button
+    $('#update-quotes-btn').click(updateQuotes);
+  });
 
   // Add this function to handle the "Update Quotes" button click
   function updateQuotes() {
@@ -357,24 +338,6 @@
       }
     });
   }
-
-  // Initial load
-  $(document).ready(function() {
-    // Populate expiration dates from the server-side rendered data
-    const expirationSelect = $('#expiration');
-    expirations.forEach(date => {
-      expirationSelect.append(new Option(date, date));
-    });
-
-    // Show chart immediately when an expiration date is selected
-    expirationSelect.change(updateOptionChain);
-
-    // Trigger the change event to load the chart with the initial selection
-    expirationSelect.trigger('change');
-
-    // Add click handler for the "Update Quotes" button
-    $('#update-quotes-btn').click(updateQuotes);
-  });
 
   document.addEventListener('DOMContentLoaded', function() {
     function updateVIX() {
