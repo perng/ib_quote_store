@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}VIX Option Analysis{% endblock %}</title>
+  <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  <style>
+    /* ... (include all your existing styles here) ... */
+
+    /* Navigation styles */
+    nav {
+      background-color: #34495e;
+      padding: 1rem;
+    }
+    nav ul {
+      list-style-type: none;
+      padding: 0;
+      margin: 0;
+      display: flex;
+      justify-content: center;
+    }
+    nav ul li {
+      margin: 0 1rem;
+    }
+    nav ul li a {
+      color: #ecf0f1;
+      text-decoration: none;
+      font-weight: bold;
+      transition: color 0.3s;
+    }
+    nav ul li a:hover {
+      color: #3498db;
+    }
+  </style>
+  {% block extra_head %}{% endblock %}
+</head>
+<body>
+
+<header>
+  <h1>Option Chain Visualization for VIX</h1>
+</header>
+
+<nav>
+  <ul>
+    <li><a href="/">VIX Option Price</a></li>
+    <li><a href="/smile">Volatility Smile</a></li>
+    <li><a href="/expiration_profit_loss">Expiration Profit/Loss</a></li>
+  </ul>
+</nav>
+
+<div class="container">
+  {% block content %}{% endblock %}
+</div>
+
+<footer>
+  &copy; 2024 Happysaur 
+</footer>
+
+{% block scripts %}{% endblock %}
+
+</body>
+</html>

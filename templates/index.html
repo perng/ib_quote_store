@@ -46,9 +46,6 @@
     }
   </style>
 
-  <button id="update-quotes-btn">Update Quotes</button>
-  <div id="update-status"></div>
-
   <div id="vix-value">
     Current VIX: <span id="vix-display">Loading...</span>
   </div>
@@ -314,30 +311,7 @@
       expirationContainer.append(createExpirationSection(date, index));
       updateOptionChain(date, `expiration-${index}`);
     });
-
-    // Add click handler for the "Update Quotes" button
-    $('#update-quotes-btn').click(updateQuotes);
   });
-
-  // Add this function to handle the "Update Quotes" button click
-  function updateQuotes() {
-    $('#update-quotes-btn').prop('disabled', true);
-    $('#update-status').text('Updating quotes... This may take a while.');
-
-    $.ajax({
-      url: '/start_get_quotes',
-      method: 'POST',
-      success: function(response) {
-        $('#update-status').text('Quote update process started. It will run in the background.');
-      },
-      error: function(xhr, status, error) {
-        $('#update-status').text('Error starting quote update: ' + error);
-      },
-      complete: function() {
-        $('#update-quotes-btn').prop('disabled', false);
-      }
-    });
-  }
 
   document.addEventListener('DOMContentLoaded', function() {
     function updateVIX() {
