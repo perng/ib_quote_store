@@ -12,7 +12,7 @@ from sqlalchemy.orm import sessionmaker
 from flask import Flask, jsonify
 from threading import Thread
 from get_quotes import get_quotes
-from datetime import date
+from datetime import date, timedelta
 import logging
 import numpy as np
 from smile import smile_route, get_smile_data
@@ -352,15 +352,27 @@ def calculate_expiration_profit_loss(options):
         'profits': profits
     }
 
+def get_expirations():
+    # This is a placeholder function. Replace this with actual logic to fetch expirations from your data source.
+    today = datetime.now()
+    expirations = [
+        (today + timedelta(days=i*7)).strftime('%Y-%m-%d')
+        for i in range(8)  # This will generate 8 weekly expirations
+    ]
+    return expirations
+
 @app.route('/smile')
 def smile():
-    return smile_route()
+    expirations = get_expirations()
+    return render_template('smile.html', expirations=expirations)
 
 @app.route('/get_smile_data')
 def smile_data():
     return get_smile_data()
 
+
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
     app.logger.info("Starting the Flask application")
     app.run(debug=True, host='0.0.0.0', port=5000)
+
