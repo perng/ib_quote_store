@@ -332,12 +332,15 @@
     // Update VIX value every 60 seconds
     setInterval(updateVIX, 60000);
 
-    // Also update when the page is shown (e.g., when returning from another tab)
+    // Update when the page is shown (e.g., when returning from another tab)
     document.addEventListener('visibilitychange', function() {
         if (!document.hidden) {
             updateVIX();
         }
     });
+
+    // Add event listener for page reload
+    window.addEventListener('load', updateVIX);
   });
 </script>
 {% endblock %}
