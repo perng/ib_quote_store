@@ -44,6 +44,26 @@
       width: 100%;
       height: 45%; /* Adjust as needed */
     }
+    #footer {
+      position: fixed;
+      bottom: 10px;
+      left: 10px;
+      right: 10px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.8em;
+      color: #666;
+      background-color: rgba(255, 255, 255, 0.8);
+      padding: 5px;
+      border-radius: 3px;
+    }
+    #copyright {
+      margin-right: 10px;
+    }
+    #commit-info {
+      text-align: right;
+    }
   </style>
 
   <div id="vix-value">
@@ -52,6 +72,13 @@
 
   <div id="expiration-container">
     <!-- This will be populated with charts and tables for each expiration date -->
+  </div>
+
+  <div id="footer">
+    <div id="copyright">© 2023 Your Company Name</div>
+    <div id="commit-info">
+      Commit: <span id="commit-hash">Loading...</span> - <span id="commit-message">Loading...</span>
+    </div>
   </div>
 
 {% endblock %}
@@ -315,32 +342,51 @@
 
   document.addEventListener('DOMContentLoaded', function() {
     function updateVIX() {
-        fetch('/get_current_vix_value')
-            .then(response => response.json())
-            .then(data => {
-                document.getElementById('vix-display').textContent = data.vix.toFixed(2);
-            })
-            .catch(error => {
-                console.error('Error fetching VIX value:', error);
-                document.getElementById('vix-display').textContent = 'Error';
-            });
+      fetch('/get_current_vix_value')
+        .then(response => response.json())
+        .then(data => {
+          document.getElementById('vix-display').textContent = data.vix.toFixed(2);
+        })
+        .catch(error => {
+          console.error('Error fetching VIX value:', error);
+          document.getElementById('vix-display').textContent = 'Error';
+        });
     }
 
-    // Update VIX value immediately when the page loads
+    function updateCommitInfo() {
+      fetch('/get_commit_info')
+        .then(response => response.json())
+        .then(data => {
+          document.getElementById('commit-hash').textContent = data.hash.substring(0, 7);
+          document.getElementById('commit-message').textContent = data.message;
+        })
+        .catch(error => {
+          console.error('Error fetching commit info:', error);
+          document.getElementById('commit-hash').textContent = 'Error';
+          document.getElementById('commit-message').textContent = 'Error fetching commit info';
+        });
+    }
+
+    // Update VIX value and commit info immediately when the page loads
     updateVIX();
+    updateCommitInfo();
 
     // Update VIX value every 60 seconds
     setInterval(updateVIX, 60000);
 
     // Update when the page is shown (e.g., when returning from another tab)
     document.addEventListener('visibilitychange', function() {
-        if (!document.hidden) {
-            updateVIX();
-        }
+      if (!document.hidden) {
+        updateVIX();
+        updateCommitInfo();
+      }
     });
 
     // Add event listener for page reload
-    window.addEventListener('load', updateVIX);
+    window.addEventListener('load', function() {
+      updateVIX();
+      updateCommitInfo();
+    });
   });
 </script>
 {% endblock %}

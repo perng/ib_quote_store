@@ -16,6 +16,7 @@ from datetime import date, timedelta
 import logging
 import numpy as np
 from smile import smile_route, get_smile_data
+import subprocess
 
 STRIKE_PRICE_MAX = 45
 STRIKE_PRICE_MIN = 5
@@ -370,6 +371,25 @@ def smile():
 def smile_data():
     return get_smile_data()
 
+@app.route('/get_commit_info')
+def get_commit_info():
+    try:
+        # Get the latest commit hash
+        commit_hash = subprocess.check_output(['git', 'rev-parse', 'HEAD']).decode('ascii').strip()
+        
+        # Get the latest commit message
+        commit_message = subprocess.check_output(['git', 'log', '-1', '--pretty=%B']).decode('ascii').strip()
+        
+        return jsonify({
+            'hash': commit_hash,
+            'message': commit_message
+        })
+    except Exception as e:
+        print(f"Error getting commit info: {e}")
+        return jsonify({
+            'hash': 'Error',
+            'message': 'Unable to fetch commit info'
+        }), 500
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
